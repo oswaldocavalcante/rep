@@ -3,7 +3,6 @@ use crate::config::Config;
 use crate::idclass;
 use crate::state;
 use chrono::Utc;
-use serde_json::json;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -67,13 +66,7 @@ pub async fn sync(config: &Config) -> Result<SyncResult, String> {
                 .map(|mut record| {
                     let current = normalize_code(&record.employee_code);
                     if let Some(mapped) = auto_mappings.get(&current) {
-                        record.employee_code = mapped.pis.clone();
-                        if let Some(name) = mapped.name.clone() {
-                            record.raw_payload = Some(json!({
-                                "name": name,
-                                "sourceEmployeeCode": current,
-                            }));
-                        }
+                        record.employee_code = mapped.clone();
                         auto_applied += 1;
                     } else {
                         record.employee_code = current;

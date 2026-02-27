@@ -132,7 +132,7 @@ async fn reset_sync_state(app_state: TauriState<'_, AppRuntimeState>) -> Result<
     let _guard = app_state.sync_lock.lock().await;
 
     state::save_state(&state::State::default()).map_err(|e| e.to_string())?;
-    let _ = state::save_log("info", 0, "Cursor de sincronização resetado manualmente");
+    let _ = state::save_log("success", 0, "Cursor de sincronização resetado manualmente (NSR=0)");
 
     Ok(())
 }

@@ -105,9 +105,11 @@ export default function Status() {
     setErrorMessage("");
     try {
       await invoke("reset_sync_state");
+      const result: SyncResult = await invoke("sync_now_locked");
       await loadState();
+      await loadCollectedPreview();
       setStatus("ok");
-      setErrorMessage("Cursor resetado. Clique em Sincronizar agora para reimportar o histórico.");
+      setErrorMessage(`Reprocessamento executado. ${result.message}`);
     } catch (e: any) {
       setStatus("error");
       setErrorMessage(e.toString());

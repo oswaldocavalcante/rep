@@ -21,8 +21,6 @@ struct PunchRecordDto {
     timestamp: String,
     #[serde(rename = "type")]
     record_type: String,
-    #[serde(rename = "rawPayload", skip_serializing_if = "Option::is_none")]
-    raw_payload: Option<serde_json::Value>,
 }
 
 pub async fn send_records(
@@ -52,7 +50,6 @@ pub async fn send_records(
                 crate::idclass::RecordType::ClockOut => "CLOCK_OUT".to_string(),
                 crate::idclass::RecordType::Unknown => "UNKNOWN".to_string(),
             },
-            raw_payload: r.raw_payload,
         })
         .collect();
 

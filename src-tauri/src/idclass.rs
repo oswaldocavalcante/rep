@@ -5,17 +5,10 @@ use chrono::{Datelike, NaiveDateTime};
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UserMapping {
-    pub pis: String,
-    pub name: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PunchRecord {
     pub employee_code: String,
     pub timestamp: String,
     pub record_type: RecordType,
-    pub raw_payload: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -176,11 +169,11 @@ impl IdClassClient {
         Ok(text)
     }
 
-    pub async fn load_user_pis_map(&self) -> Result<HashMap<String, UserMapping>, String> {
+    pub async fn load_user_pis_map(&self) -> Result<HashMap<String, String>, String> {
         let session = self.session.as_ref().ok_or("Not logged in")?;
         let url = format!("https://{}/load_users.fcgi?session={}", self.ip, session);
 
-        let mut map: HashMap<String, UserMapping> = HashMap::new();
+        let mut map: HashMap<String, String> = HashMap::new();
         let mut pis_values: Vec<String> = Vec::new();
         let mut offset = 0u64;
         let limit = 100u64;
@@ -243,16 +236,13 @@ impl IdClassClient {
                 }
 
                 pis_values.push(pis.clone());
-                let user_name = value_to_string("name").map(|value| value.trim().to_string()).filter(|value| !value.is_empty());
-                let mapping = UserMapping { pis: pis.clone(), name: user_name };
-
-                map.insert(pis.clone(), mapping.clone());
+                map.insert(pis.clone(), pis.clone());
 
                 for key in ["code", "id", "registration", "bars", "rfid"] {
                     if let Some(raw_key) = value_to_string(key) {
                         let normalized_key = Self::normalize_code(&raw_key);
                         if !normalized_key.is_empty() && normalized_key != "0" {
-                            map.insert(normalized_key, mapping.clone());
+                            map.insert(normalized_key, pis.clone());
                         }
                     }
                 }
@@ -278,11 +268,11 @@ impl IdClassClient {
             }
             let prefix = pis[..5].to_string();
             if let Some(existing) = map.get(&prefix) {
-                if existing.pis != *pis {
+                if *existing != *pis {
                     ambiguous_prefixes.insert(prefix.clone());
                 }
             } else {
-                map.insert(prefix, UserMapping { pis: pis.clone(), name: None });
+                map.insert(prefix, pis.clone());
             }
         }
 
@@ -345,7 +335,6 @@ impl IdClassClient {
                 employee_code,
                 timestamp,
                 record_type,
-                raw_payload: None,
             });
         }
         
@@ -381,7 +370,7 @@ pub async fn get_user_pis_mappings(
     ip: &str,
     user: &str,
     password: &str,
-) -> Result<HashMap<String, UserMapping>, String> {
+) -> Result<HashMap<String, String>, String> {
     let mut client = IdClassClient::new(ip);
     client.login(user, password).await?;
     client.load_user_pis_map().await
