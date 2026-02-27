@@ -1,0 +1,151 @@
+[
+  {
+    "endpoint": "load_objects.fcgi",
+    "payload": {
+      "object": "users"
+    },
+    "status": "ok",
+    "raw_preview": "{\"error\":\"Invalid command: load_objects\",\"code\":400}",
+    "json_keys": [
+      "code",
+      "error"
+    ],
+    "error": "Invalid command: load_objects",
+    "code": 400
+  },
+  {
+    "endpoint": "load_objects.fcgi",
+    "payload": {
+      "object": "users",
+      "fields": [
+        "id",
+        "registration",
+        "name"
+      ]
+    },
+    "status": "ok",
+    "raw_preview": "{\"error\":\"Invalid command: load_objects\",\"code\":400}",
+    "json_keys": [
+      "code",
+      "error"
+    ],
+    "error": "Invalid command: load_objects",
+    "code": 400
+  },
+  {
+    "endpoint": "load_users.fcgi",
+    "payload": {
+      "initial_id": 0,
+      "limit": 100
+    },
+    "status": "ok",
+    "raw_preview": "{\"error\":\"Invalid session\",\"code\":401}",
+    "json_keys": [
+      "code",
+      "error"
+    ],
+    "error": "Invalid session",
+    "code": 401
+  },
+  {
+    "endpoint": "load_users.fcgi",
+    "payload": {
+      "offset": 0,
+      "limit": 100
+    },
+    "status": "ok",
+    "raw_preview": "{\"error\":\"Invalid session\",\"code\":401}",
+    "json_keys": [
+      "code",
+      "error"
+    ],
+    "error": "Invalid session",
+    "code": 401
+  },
+  {
+    "endpoint": "load_users.fcgi",
+    "payload": {},
+    "status": "ok",
+    "raw_preview": "{\"error\":\"Invalid session\",\"code\":401}",
+    "json_keys": [
+      "code",
+      "error"
+    ],
+    "error": "Invalid session",
+    "code": 401
+  },
+  {
+    "endpoint": "get_users.fcgi",
+    "payload": {},
+    "status": "ok",
+    "raw_preview": "{\"error\":\"Invalid command: get_users\",\"code\":400}",
+    "json_keys": [
+      "code",
+      "error"
+    ],
+    "error": "Invalid command: get_users",
+    "code": 400
+  },
+  {
+    "endpoint": "get_users_list.fcgi",
+    "payload": {},
+    "status": "ok",
+    "raw_preview": "{\"error\":\"Invalid command: get_users_list\",\"code\":400}",
+    "json_keys": [
+      "code",
+      "error"
+    ],
+    "error": "Invalid command: get_users_list",
+    "code": 400
+  },
+  {
+    "endpoint": "user_list.fcgi",
+    "payload": {},
+    "status": "ok",
+    "raw_preview": "{\"error\":\"Invalid command: user_list\",\"code\":400}",
+    "json_keys": [
+      "code",
+      "error"
+    ],
+    "error": "Invalid command: user_list",
+    "code": 400
+  },
+  {
+    "endpoint": "users_get_list.fcgi",
+    "payload": {},
+    "status": "ok",
+    "raw_preview": "{\"error\":\"Invalid command: users_get_list\",\"code\":400}",
+    "json_keys": [
+      "code",
+      "error"
+    ],
+    "error": "Invalid command: users_get_list",
+    "code": 400
+  },
+  {
+    "endpoint": "users.fcgi",
+    "payload": {},
+    "status": "ok",
+    "raw_preview": "{\"error\":\"Invalid command: users\",\"code\":400}",
+    "json_keys": [
+      "code",
+      "error"
+    ],
+    "error": "Invalid command: users",
+    "code": 400
+  },
+  {
+    "endpoint": "get_user.fcgi",
+    "payload": {
+      "id": 1
+    },
+    "status": "ok",
+    "raw_preview": "{\"error\":\"Invalid command: get_user\",\"code\":400}",
+    "json_keys": [
+      "code",
+      "error"
+    ],
+    "error": "Invalid command: get_user",
+    "code": 400
+  }
+]

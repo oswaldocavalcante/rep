@@ -51,7 +51,8 @@ fn get_sync_status_data() -> Result<SyncStatus, String> {
 
     let (last_records_sent, last_message) = logs
         .entries
-        .first()
+        .iter()
+        .find(|entry| entry.status != "info")
         .map(|entry| (entry.records_sent, entry.message.clone()))
         .unwrap_or((0, String::new()));
 
@@ -124,6 +125,16 @@ fn get_sync_status() -> Result<SyncStatus, String> {
 fn get_logs() -> Result<Vec<state::LogEntry>, String> {
     let logs = state::load_logs().map_err(|e| e.to_string())?;
     Ok(logs.entries)
+}
+
+#[tauri::command]
+async fn reset_sync_state(app_state: TauriState<'_, AppRuntimeState>) -> Result<(), String> {
+    let _guard = app_state.sync_lock.lock().await;
+
+    state::save_state(&state::State::default()).map_err(|e| e.to_string())?;
+    let _ = state::save_log("info", 0, "Cursor de sincronização resetado manualmente");
+
+    Ok(())
 }
 
 fn main() {
@@ -216,6 +227,7 @@ fn main() {
             sync_now_locked,
             get_sync_status,
             get_logs,
+            reset_sync_state,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

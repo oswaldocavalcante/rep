@@ -10,23 +10,32 @@ interface LogEntry {
 }
 
 export default function Logs() {
-  const [filter, setFilter] = useState<"all" | "success" | "error">("all");
+  const [filter, setFilter] = useState<"all" | "success" | "error" | "info">("all");
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [live, setLive] = useState(true);
 
   useEffect(() => {
     loadLogs();
   }, []);
 
-  const loadLogs = async () => {
-    setLoading(true);
+  useEffect(() => {
+    if (!live) return;
+    const timer = setInterval(() => {
+      loadLogs(false);
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [live]);
+
+  const loadLogs = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const result: LogEntry[] = await invoke("get_logs");
       setLogs(result);
     } catch (e) {
       console.error("Failed to load logs:", e);
     }
-    setLoading(false);
+    if (showLoading) setLoading(false);
   };
 
   const filteredLogs = logs.filter((log) => {
@@ -39,12 +48,18 @@ export default function Logs() {
       <div className="bg-white shadow rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-medium">Logs de Sincronização</h2>
-          <button
-            onClick={loadLogs}
-            className="px-3 py-1 text-sm bg-gray-100 rounded-md hover:bg-gray-200"
-          >
-            Atualizar
-          </button>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-600 inline-flex items-center gap-1">
+              <input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} />
+              Tempo real
+            </label>
+            <button
+              onClick={() => loadLogs()}
+              className="px-3 py-1 text-sm bg-gray-100 rounded-md hover:bg-gray-200"
+            >
+              Atualizar
+            </button>
+          </div>
         </div>
 
         <div className="flex space-x-2 mb-4">
@@ -77,6 +92,16 @@ export default function Logs() {
               }`}
             >
               Erro
+            </button>
+            <button
+              onClick={() => setFilter("info")}
+              className={`px-3 py-1 text-sm rounded-md ${
+                filter === "info"
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-100 text-gray-700"
+              }`}
+            >
+              Info
             </button>
         </div>
 
@@ -116,10 +141,12 @@ export default function Logs() {
                         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                           log.status === "success"
                             ? "bg-green-100 text-green-800"
+                            : log.status === "info"
+                            ? "bg-blue-100 text-blue-800"
                             : "bg-red-100 text-red-800"
                         }`}
                       >
-                        {log.status === "success" ? "Sucesso" : "Erro"}
+                        {log.status === "success" ? "Sucesso" : log.status === "info" ? "Info" : "Erro"}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">

@@ -29,4 +29,4 @@ env_logger = "0.11"
 strip = true
 lto = true
 codegen-units = 1
-panic = "abort"
+panic = "unwind"

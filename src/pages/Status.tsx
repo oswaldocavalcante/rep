@@ -16,16 +16,35 @@ interface SyncStatus {
   next_sync_at: string | null;
 }
 
+interface LogEntry {
+  id: number;
+  timestamp: string;
+  status: string;
+  records_sent: number;
+  message: string;
+}
+
 export default function Status() {
   const [lastSync, setLastSync] = useState<string>("--");
   const [recordsSent, setRecordsSent] = useState<number>(0);
   const [nextSync, setNextSync] = useState<string>("--");
   const [status, setStatus] = useState<"ok" | "syncing" | "error">("ok");
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [showCollected, setShowCollected] = useState(false);
+  const [collectedText, setCollectedText] = useState("Nenhuma coleta registrada ainda.");
 
   useEffect(() => {
     loadState();
   }, []);
+
+  useEffect(() => {
+    if (!showCollected) return;
+    loadCollectedPreview();
+    const timer = setInterval(() => {
+      loadCollectedPreview();
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [showCollected]);
 
   const loadState = async () => {
     try {
@@ -55,8 +74,40 @@ export default function Status() {
     try {
       const result: SyncResult = await invoke("sync_now_locked");
       await loadState();
+      await loadCollectedPreview();
       setStatus(result.success ? "ok" : "error");
       setErrorMessage(result.message);
+    } catch (e: any) {
+      setStatus("error");
+      setErrorMessage(e.toString());
+    }
+  };
+
+  const loadCollectedPreview = async () => {
+    try {
+      const logs: LogEntry[] = await invoke("get_logs");
+      const preview = logs.find((log) => log.message?.startsWith("COLETA_PREVIEW"));
+      if (preview) {
+        setCollectedText(`[${preview.timestamp}]\n${preview.message}`);
+      }
+    } catch (e) {
+      console.error("Failed to load collected preview:", e);
+    }
+  };
+
+  const handleResetHistory = async () => {
+    const confirmed = window.confirm(
+      "Isso vai resetar o cursor de sincronização e permitir reprocessar o histórico do relógio. Deseja continuar?"
+    );
+    if (!confirmed) return;
+
+    setStatus("syncing");
+    setErrorMessage("");
+    try {
+      await invoke("reset_sync_state");
+      await loadState();
+      setStatus("ok");
+      setErrorMessage("Cursor resetado. Clique em Sincronizar agora para reimportar o histórico.");
     } catch (e: any) {
       setStatus("error");
       setErrorMessage(e.toString());
@@ -103,13 +154,42 @@ export default function Status() {
             )}
           </div>
 
-          <button
-            onClick={handleSync}
-            disabled={status === "syncing"}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-          >
-            {status === "syncing" ? "Sincronizando..." : "Sincronizar agora"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleResetHistory}
+              disabled={status === "syncing"}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50"
+            >
+              Reprocessar histórico
+            </button>
+            <button
+              onClick={handleSync}
+              disabled={status === "syncing"}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+            >
+              {status === "syncing" ? "Sincronizando..." : "Sincronizar agora"}
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-gray-700">Dados coletados na sincronização</h3>
+            <button
+              onClick={() => setShowCollected((prev) => !prev)}
+              className="px-3 py-1 text-sm bg-gray-100 rounded-md hover:bg-gray-200"
+            >
+              {showCollected ? "Ocultar" : "Mostrar"}
+            </button>
+          </div>
+
+          {showCollected && (
+            <textarea
+              readOnly
+              value={collectedText}
+              className="w-full h-56 rounded-md border border-gray-300 bg-gray-50 p-3 text-xs font-mono text-gray-800"
+            />
+          )}
         </div>
       </div>
     </div>

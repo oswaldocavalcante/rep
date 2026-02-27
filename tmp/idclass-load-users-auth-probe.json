@@ -1,0 +1,95 @@
+{
+  "session_preview": "1wSmDQhA",
+  "checks": {
+    "get_system_information_post_query": {
+      "ok": true,
+      "raw": "{\"user_count\":23,\"template_count\":52,\"uptime\":53329,\"ticks\":1113,\"cuts\":23272,\"coil_paper\":0,\"total_paper\":10707,\"paper_ok\":true,\"low_paper\":null,\"memory\":22,\"used_mrp\":0,\"last_nsr\":23702}",
+      "keys": [
+        "coil_paper",
+        "cuts",
+        "last_nsr",
+        "low_paper",
+        "memory",
+        "paper_ok",
+        "template_count",
+        "ticks",
+        "total_paper",
+        "uptime",
+        "used_mrp",
+        "user_count"
+      ],
+      "error": null,
+      "code": null
+    },
+    "get_system_information_get_query": {
+      "ok": true,
+      "raw": "{\"error\":\"Bad Request: POST expected\",\"code\":400}",
+      "keys": [
+        "code",
+        "error"
+      ],
+      "error": "Bad Request: POST expected",
+      "code": 400
+    },
+    "load_users_post_query_empty": {
+      "ok": true,
+      "raw": "{\"error\":\"'limit' deve ser do tipo inteiro\",\"code\":400}",
+      "keys": [
+        "code",
+        "error"
+      ],
+      "error": "'limit' deve ser do tipo inteiro",
+      "code": 400
+    },
+    "load_users_post_query_initial": {
+      "ok": true,
+      "raw": "{\"error\":\"'offset' deve ser do inteiro\",\"code\":400}",
+      "keys": [
+        "code",
+        "error"
+      ],
+      "error": "'offset' deve ser do inteiro",
+      "code": 400
+    },
+    "load_users_post_query_offset": {
+      "ok": true,
+      "raw": "{\"users\":[{\"name\":\"Márcia Mendes da Silva\",\"pis\":20365197925,\"code\":0,\"templates_count\":1,\"password\":\"\",\"admin\":false,\"rfid\":0,\"bars\":\"\",\"registration\":0},{\"name\":\"Silvânia Barbosa do Amaral\",\"pis\":12234491527,\"code\":0,\"templates_count\":1,\"password\":\"\",\"admin\":false,\"rfid\":0,\"bars\":\"\",\"registration\":0},{\"name\":\"Edlene Emidio de Maria\",\"pis\":20365209206,\"code\":0,\"templates_count\":1,\"password\":\"\",\"a",
+      "keys": [
+        "count",
+        "users"
+      ],
+      "error": null,
+      "code": null
+    },
+    "load_users_post_body_session": {
+      "ok": true,
+      "raw": "{\"users\":[{\"name\":\"Márcia Mendes da Silva\",\"pis\":20365197925,\"code\":0,\"templates_count\":1,\"password\":\"\",\"admin\":false,\"rfid\":0,\"bars\":\"\",\"registration\":0},{\"name\":\"Silvânia Barbosa do Amaral\",\"pis\":12234491527,\"code\":0,\"templates_count\":1,\"password\":\"\",\"admin\":false,\"rfid\":0,\"bars\":\"\",\"registration\":0},{\"name\":\"Edlene Emidio de Maria\",\"pis\":20365209206,\"code\":0,\"templates_count\":1,\"password\":\"\",\"a",
+      "keys": [
+        "count",
+        "users"
+      ],
+      "error": null,
+      "code": null
+    },
+    "load_users_post_body_session_alt": {
+      "ok": true,
+      "raw": "{\"error\":\"'offset' deve ser do inteiro\",\"code\":400}",
+      "keys": [
+        "code",
+        "error"
+      ],
+      "error": "'offset' deve ser do inteiro",
+      "code": 400
+    },
+    "load_users_get_query": {
+      "ok": true,
+      "raw": "{\"error\":\"Bad Request: POST expected\",\"code\":400}",
+      "keys": [
+        "code",
+        "error"
+      ],
+      "error": "Bad Request: POST expected",
+      "code": 400
+    }
+  }
+}
