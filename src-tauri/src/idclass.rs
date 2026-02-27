@@ -24,6 +24,12 @@ pub struct IdClassClient {
     session: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecordsBatch {
+    pub records: Vec<PunchRecord>,
+    pub latest_nsr: u64,
+}
+
 impl IdClassClient {
     pub fn new(ip: &str) -> Self {
         let client = Client::builder()
@@ -131,7 +137,6 @@ impl IdClassClient {
             }
             
             if line.len() >= 32 {
-                let nsr = &line[0..9].trim_start_matches('0');
                 let date = &line[9..17];
                 let time = &line[17..23];
                 let code = &line[23..28].trim_start_matches('0');
@@ -175,9 +180,13 @@ pub async fn login(ip: &str, user: &str, password: &str) -> Result<String, Strin
     client.login(user, password).await
 }
 
-pub async fn get_records(ip: &str, user: &str, password: &str, last_nsr: u64) -> Result<Vec<PunchRecord>, String> {
+pub async fn get_records(ip: &str, user: &str, password: &str, last_nsr: u64) -> Result<RecordsBatch, String> {
     let mut client = IdClassClient::new(ip);
     client.login(user, password).await?;
+    let system_info = client.get_system_info().await?;
     let afd = client.get_afd(last_nsr).await?;
-    Ok(IdClassClient::parse_afd(&afd))
+    Ok(RecordsBatch {
+        records: IdClassClient::parse_afd(&afd),
+        latest_nsr: system_info.last_nsr,
+    })
 }

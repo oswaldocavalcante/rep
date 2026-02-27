@@ -7,13 +7,13 @@ interface SyncResult {
   message: string;
 }
 
-interface Config {
-  device_ip: string;
-  device_user: string;
-  device_password: string;
-  app_url: string;
-  api_key: string;
+interface SyncStatus {
+  last_synced_at: string | null;
+  last_nsr: number;
+  last_records_sent: number;
+  last_message: string;
   sync_interval_secs: number;
+  next_sync_at: string | null;
 }
 
 export default function Status() {
@@ -29,12 +29,20 @@ export default function Status() {
 
   const loadState = async () => {
     try {
-      const config = await invoke<Config>("load_config");
-      if (config.device_ip) {
-        setLastSync(new Date().toLocaleString("pt-BR"));
-        const interval = (config.sync_interval_secs || 300) / 60;
-        const next = new Date(Date.now() + interval * 60 * 1000);
-        setNextSync(next.toLocaleTimeString("pt-BR"));
+      const statusData = await invoke<SyncStatus>("get_sync_status");
+      setLastSync(
+        statusData.last_synced_at
+          ? new Date(statusData.last_synced_at).toLocaleString("pt-BR")
+          : "--"
+      );
+      setNextSync(
+        statusData.next_sync_at
+          ? new Date(statusData.next_sync_at).toLocaleTimeString("pt-BR")
+          : "--"
+      );
+      setRecordsSent(statusData.last_records_sent || 0);
+      if (statusData.last_message) {
+        setErrorMessage(statusData.last_message);
       }
     } catch (e) {
       console.error("Failed to load state:", e);
@@ -45,15 +53,8 @@ export default function Status() {
     setStatus("syncing");
     setErrorMessage("");
     try {
-      const result: SyncResult = await invoke("sync_now");
-      setRecordsSent((prev) => prev + result.records_sent);
-      setLastSync(new Date().toLocaleString("pt-BR"));
-      
-      const config = await invoke<Config>("load_config");
-      const interval = (config.sync_interval_secs || 300) / 60;
-      const next = new Date(Date.now() + interval * 60 * 1000);
-      setNextSync(next.toLocaleTimeString("pt-BR"));
-      
+      const result: SyncResult = await invoke("sync_now_locked");
+      await loadState();
       setStatus(result.success ? "ok" : "error");
       setErrorMessage(result.message);
     } catch (e: any) {

@@ -20,7 +20,7 @@ pub async fn sync(config: &Config) -> Result<SyncResult, String> {
 
     log::info!("Fetching records since NSR {}", last_nsr);
 
-    let records = idclass::get_records(
+    let records_batch = idclass::get_records(
         &config.device_ip,
         &config.device_user,
         &config.device_password,
@@ -28,8 +28,9 @@ pub async fn sync(config: &Config) -> Result<SyncResult, String> {
     )
     .await;
 
-    let result = match records {
-        Ok(recs) => {
+    let result = match records_batch {
+        Ok(batch) => {
+            let recs = batch.records;
             if recs.is_empty() {
                 log::info!("No new records to sync");
                 let _ = state::save_log("success", 0, "Nenhum registro novo");
@@ -46,10 +47,9 @@ pub async fn sync(config: &Config) -> Result<SyncResult, String> {
 
             match send_result {
                 Ok(()) => {
-                    let new_last_nsr = last_nsr + recs.len() as u64;
                     let new_state = state::State {
                         last_synced_at: Utc::now(),
-                        last_nsr: new_last_nsr,
+                        last_nsr: batch.latest_nsr,
                     };
                     state::save_state(&new_state).map_err(|e| e.to_string())?;
                     

@@ -1,5 +1,5 @@
 use crate::idclass::PunchRecord;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 #[derive(Debug, Serialize)]
 struct PunchRequest {
