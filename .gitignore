@@ -1,5 +1,6 @@
 # Plans (documentação local, não versionada)
 plans/
+tmp
 
 # Node
 node_modules/
