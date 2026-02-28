@@ -104,8 +104,7 @@ export default function Status() {
     setStatus("syncing");
     setErrorMessage("");
     try {
-      await invoke("reset_sync_state");
-      const result: SyncResult = await invoke("sync_now_locked");
+      const result: SyncResult = await invoke("reprocess_history_locked");
       await loadState();
       await loadCollectedPreview();
       setStatus("ok");

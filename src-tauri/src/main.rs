@@ -137,6 +137,17 @@ async fn reset_sync_state(app_state: TauriState<'_, AppRuntimeState>) -> Result<
     Ok(())
 }
 
+#[tauri::command]
+async fn reprocess_history_locked(app_state: TauriState<'_, AppRuntimeState>) -> Result<sync::SyncResult, String> {
+    let _guard = app_state.sync_lock.lock().await;
+
+    state::save_state(&state::State::default()).map_err(|e| e.to_string())?;
+    let _ = state::save_log("success", 0, "Cursor de sincronização resetado manualmente (NSR=0)");
+
+    let config = config::load_config().map_err(|e| e.to_string())?;
+    sync::sync(&config).await
+}
+
 fn main() {
     env_logger::init();
     info!("Starting Ryanne Ponto Agent");
@@ -228,6 +239,7 @@ fn main() {
             get_sync_status,
             get_logs,
             reset_sync_state,
+            reprocess_history_locked,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

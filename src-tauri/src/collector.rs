@@ -1,5 +1,6 @@
 use crate::idclass::PunchRecord;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 #[derive(Debug, Serialize)]
 struct PunchRequest {
@@ -14,7 +15,7 @@ pub struct SendStats {
     pub ignored: u32,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 struct PunchRecordDto {
     #[serde(rename = "employeeCode")]
     employee_code: String,
@@ -53,21 +54,99 @@ pub async fn send_records(
         })
         .collect();
 
-    let body = PunchRequest {
-        records: request_records,
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+
+    let chunk_size = 500usize;
+    let total_chunks = request_records.len().div_ceil(chunk_size);
+
+    let mut total = SendStats {
+        received: 0,
+        inserted: 0,
+        duplicates: 0,
+        ignored: 0,
     };
+
+    for (index, chunk) in request_records.chunks(chunk_size).enumerate() {
+        let body = PunchRequest {
+            records: chunk.to_vec(),
+        };
+
+        let stats = send_chunk_with_retry(&client, &url, api_key, &body)
+            .await
+            .map_err(|e| format!("Chunk {}/{} failed: {}", index + 1, total_chunks, e))?;
+
+        total.received += stats.received;
+        total.inserted += stats.inserted;
+        total.duplicates += stats.duplicates;
+        total.ignored += stats.ignored;
+    }
+
+    log::info!(
+        "Records sent in {} chunks: received={}, inserted={}, duplicates={}, ignored={}",
+        total_chunks,
+        total.received,
+        total.inserted,
+        total.duplicates,
+        total.ignored
+    );
+
+    Ok(total)
+}
+
+#[derive(Debug, Deserialize)]
+struct EmployeeCodesResponse {
+    #[serde(rename = "employeeCodes")]
+    employee_codes: Vec<String>,
+}
+
+pub async fn fetch_allowed_employee_codes(
+    app_url: &str,
+    api_key: &str,
+) -> Result<HashSet<String>, String> {
+    let url = format!("{}/api/punch-collector/employees", app_url);
 
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
+    let response = client
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", api_key))
+        .send()
+        .await
+        .map_err(|e| format!("Connection error while fetching employees: {}", e))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let text = response.text().await.unwrap_or_default();
+        return Err(format!("Failed to fetch employees whitelist: {} {}", status, text));
+    }
+
+    let payload: EmployeeCodesResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse employees whitelist response: {}", e))?;
+
+    Ok(payload.employee_codes.into_iter().collect())
+}
+
+async fn send_chunk_with_retry(
+    client: &reqwest::Client,
+    url: &str,
+    api_key: &str,
+    body: &PunchRequest,
+) -> Result<SendStats, String> {
+
     let mut retries = 3;
     let mut last_error = String::new();
 
     while retries > 0 {
         let result = client
-            .post(&url)
+            .post(url)
             .header("Authorization", format!("Bearer {}", api_key))
             .json(&body)
             .send()
@@ -80,13 +159,6 @@ pub async fn send_records(
                         .json()
                         .await
                         .map_err(|e| format!("Failed to parse server response: {}", e))?;
-                    log::info!(
-                        "Records sent: received={}, inserted={}, duplicates={}, ignored={}",
-                        stats.received,
-                        stats.inserted,
-                        stats.duplicates,
-                        stats.ignored
-                    );
                     return Ok(stats);
                 } else {
                     let status = response.status();

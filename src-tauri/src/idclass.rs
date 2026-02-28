@@ -280,6 +280,31 @@ impl IdClassClient {
             map.remove(&prefix);
         }
 
+        let mut suffix_candidates: HashMap<String, String> = HashMap::new();
+        let mut ambiguous_suffixes = HashSet::new();
+        for pis in &pis_values {
+            if pis.len() < 10 {
+                continue;
+            }
+
+            let suffix = pis[pis.len() - 10..].to_string();
+            if let Some(existing) = suffix_candidates.get(&suffix) {
+                if existing != pis {
+                    ambiguous_suffixes.insert(suffix.clone());
+                }
+            } else {
+                suffix_candidates.insert(suffix, pis.clone());
+            }
+        }
+
+        for suffix in ambiguous_suffixes {
+            suffix_candidates.remove(&suffix);
+        }
+
+        for (suffix, pis) in suffix_candidates {
+            map.entry(suffix).or_insert(pis);
+        }
+
         Ok(map)
     }
 

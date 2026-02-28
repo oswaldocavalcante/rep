@@ -82,6 +82,39 @@ pub async fn sync(config: &Config) -> Result<SyncResult, String> {
             );
             let _ = state::save_log("info", 0, &mapping_msg);
 
+            let allowed_codes = collector::fetch_allowed_employee_codes(&config.app_url, &config.api_key).await;
+            let allowed_codes = match allowed_codes {
+                Ok(codes) => codes,
+                Err(error) => {
+                    let _ = state::save_log("error", 0, &format!("Falha ao buscar colaboradores ativos no app: {}", error));
+                    return Err(error);
+                }
+            };
+            let allowed_codes_normalized: std::collections::HashSet<String> = allowed_codes
+                .iter()
+                .map(|code| normalize_code(code))
+                .collect();
+
+            let before_filter = recs.len();
+            let recs: Vec<_> = recs
+                .into_iter()
+                .filter(|record| {
+                    let normalized = normalize_code(&record.employee_code);
+                    allowed_codes_normalized.contains(&normalized)
+                })
+                .collect();
+
+            let filtered_out = before_filter.saturating_sub(recs.len());
+            let _ = state::save_log(
+                "info",
+                recs.len() as u32,
+                &format!(
+                    "Filtro por colaboradores ativos aplicado: permitidos={}, descartados={}",
+                    recs.len(),
+                    filtered_out
+                )
+            );
+
             if recs.is_empty() {
                 log::info!("No new records to sync");
                 let _ = state::save_log("success", 0, "Nenhum registro novo");
