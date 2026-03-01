@@ -79,6 +79,7 @@ fn save_config(
     device_password: String,
     app_url: String,
     api_key: String,
+    clock_id: String,
     sync_interval_secs: u64,
 ) -> Result<(), String> {
     config::save_config(&config::Config {
@@ -87,6 +88,7 @@ fn save_config(
         device_password,
         app_url,
         api_key,
+        clock_id,
         sync_interval_secs,
     }).map_err(|e| e.to_string())
 }

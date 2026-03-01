@@ -10,6 +10,7 @@ pub struct Config {
     pub device_password: String,
     pub app_url: String,
     pub api_key: String,
+    pub clock_id: String,
     pub sync_interval_secs: u64,
 }
 
@@ -21,6 +22,7 @@ impl Default for Config {
             device_password: String::new(),
             app_url: String::new(),
             api_key: String::new(),
+            clock_id: String::new(),
             sync_interval_secs: 300,
         }
     }

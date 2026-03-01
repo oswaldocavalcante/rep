@@ -5,6 +5,7 @@ use crate::state;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::time::Duration;
 
 fn normalize_code(value: &str) -> String {
     let digits_only: String = value.chars().filter(|c| c.is_ascii_digit()).collect();
@@ -13,6 +14,32 @@ fn normalize_code(value: &str) -> String {
     }
     let trimmed = digits_only.trim_start_matches('0');
     if trimmed.is_empty() { "0".to_string() } else { trimmed.to_string() }
+}
+
+/// Reporta o status da última sincronização ao endpoint /api/time-clocks/:id/sync-status.
+/// Falha silenciosamente para não interromper o fluxo principal.
+async fn report_sync_status(app_url: &str, api_key: &str, clock_id: &str, last_sync_at: Option<&str>, last_error: Option<&str>) {
+    if clock_id.is_empty() || app_url.is_empty() || api_key.is_empty() {
+        return;
+    }
+    let url = format!("{}/api/time-clocks/{}/sync-status", app_url, clock_id);
+    let mut body = serde_json::json!({});
+    if let Some(ts) = last_sync_at {
+        body["lastSyncAt"] = serde_json::Value::String(ts.to_string());
+    }
+    if let Some(err) = last_error {
+        body["lastError"] = serde_json::Value::String(err.to_string());
+    }
+    let client = match reqwest::Client::builder().timeout(Duration::from_secs(10)).build() {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    let _ = client
+        .post(&url)
+        .header("Authorization", format!("Bearer {}", api_key))
+        .json(&body)
+        .send()
+        .await;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -142,7 +169,7 @@ pub async fn sync(config: &Config) -> Result<SyncResult, String> {
             };
             let _ = state::save_log("info", recs.len() as u32, &preview_message);
 
-            let send_result = collector::send_records(&config.app_url, &config.api_key, recs.clone()).await;
+            let send_result = collector::send_records(&config.app_url, &config.api_key, &config.clock_id, recs.clone()).await;
 
             match send_result {
                 Ok(send_stats) => {
@@ -162,6 +189,9 @@ pub async fn sync(config: &Config) -> Result<SyncResult, String> {
                     let _ = state::save_log("success", send_stats.inserted, &msg);
                     
                     log::info!("Sync completed successfully");
+
+                    let ts = Utc::now().to_rfc3339();
+                    report_sync_status(&config.app_url, &config.api_key, &config.clock_id, Some(&ts), None).await;
                     
                     Ok(SyncResult {
                         success: true,
@@ -171,12 +201,14 @@ pub async fn sync(config: &Config) -> Result<SyncResult, String> {
                 }
                 Err(e) => {
                     let _ = state::save_log("error", 0, &e);
+                    report_sync_status(&config.app_url, &config.api_key, &config.clock_id, None, Some(&e)).await;
                     Err(e)
                 }
             }
         }
         Err(e) => {
             let _ = state::save_log("error", 0, &e);
+            report_sync_status(&config.app_url, &config.api_key, &config.clock_id, None, Some(&e)).await;
             Err(e)
         }
     };

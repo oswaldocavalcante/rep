@@ -4,6 +4,8 @@ use std::collections::HashSet;
 
 #[derive(Debug, Serialize)]
 struct PunchRequest {
+    #[serde(rename = "clockId", skip_serializing_if = "Option::is_none")]
+    clock_id: Option<String>,
     records: Vec<PunchRecordDto>,
 }
 
@@ -22,11 +24,16 @@ struct PunchRecordDto {
     timestamp: String,
     #[serde(rename = "type")]
     record_type: String,
+    #[serde(rename = "externalNsr", skip_serializing_if = "Option::is_none")]
+    external_nsr: Option<String>,
+    #[serde(rename = "rawPayload", skip_serializing_if = "Option::is_none")]
+    raw_payload: Option<String>,
 }
 
 pub async fn send_records(
     app_url: &str,
     api_key: &str,
+    clock_id: &str,
     records: Vec<PunchRecord>,
 ) -> Result<SendStats, String> {
     if records.is_empty() {
@@ -40,17 +47,28 @@ pub async fn send_records(
     }
 
     let url = format!("{}/api/punch-collector", app_url);
+    let clock_id_opt: Option<String> = if clock_id.is_empty() { None } else { Some(clock_id.to_string()) };
     
     let request_records: Vec<PunchRecordDto> = records
         .into_iter()
-        .map(|r| PunchRecordDto {
-            employee_code: r.employee_code,
-            timestamp: r.timestamp,
-            record_type: match r.record_type {
-                crate::idclass::RecordType::ClockIn => "CLOCK_IN".to_string(),
-                crate::idclass::RecordType::ClockOut => "CLOCK_OUT".to_string(),
-                crate::idclass::RecordType::Unknown => "UNKNOWN".to_string(),
-            },
+        .map(|r| {
+            let external_nsr = if r.nsr > 0 && !clock_id.is_empty() {
+                Some(format!("{}:{}", clock_id, r.nsr))
+            } else {
+                None
+            };
+            let raw_payload = if r.raw_line.is_empty() { None } else { Some(r.raw_line.clone()) };
+            PunchRecordDto {
+                employee_code: r.employee_code,
+                timestamp: r.timestamp,
+                record_type: match r.record_type {
+                    crate::idclass::RecordType::ClockIn => "CLOCK_IN".to_string(),
+                    crate::idclass::RecordType::ClockOut => "CLOCK_OUT".to_string(),
+                    crate::idclass::RecordType::Unknown => "UNKNOWN".to_string(),
+                },
+                external_nsr,
+                raw_payload,
+            }
         })
         .collect();
 
@@ -71,6 +89,7 @@ pub async fn send_records(
 
     for (index, chunk) in request_records.chunks(chunk_size).enumerate() {
         let body = PunchRequest {
+            clock_id: clock_id_opt.clone(),
             records: chunk.to_vec(),
         };
 

@@ -9,6 +9,10 @@ pub struct PunchRecord {
     pub employee_code: String,
     pub timestamp: String,
     pub record_type: RecordType,
+    /// NSR (Número Sequencial de Registro) original da linha AFD
+    pub nsr: u64,
+    /// Linha AFD original para rastreabilidade (rawPayload)
+    pub raw_line: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -322,6 +326,11 @@ impl IdClassClient {
                 continue;
             }
 
+            // NSR: primeiros 9 caracteres da linha AFD (Portaria 595/2007)
+            let nsr: u64 = line.get(0..9)
+                .and_then(|s| s.trim().parse().ok())
+                .unwrap_or(0);
+
             let Some(code_raw) = line.get(23..28) else {
                 log::warn!("Skipping AFD line without valid code range: {}", line);
                 continue;
@@ -360,6 +369,8 @@ impl IdClassClient {
                 employee_code,
                 timestamp,
                 record_type,
+                nsr,
+                raw_line: line.to_string(),
             });
         }
         
