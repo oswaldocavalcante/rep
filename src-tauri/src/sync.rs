@@ -70,10 +70,11 @@ pub async fn fetch_device_credentials(
         return Err(format!("Servidor retornou {}: {}", status, body));
     }
 
-    let json: serde_json::Value = resp
-        .json()
-        .await
-        .map_err(|e| format!("Erro ao parsear resposta: {}", e))?;
+    let body = resp.text().await
+        .map_err(|e| format!("Erro ao ler resposta: {}", e))?;
+
+    let json: serde_json::Value = serde_json::from_str(&body)
+        .map_err(|e| format!("Resposta inválida ({}): {}", e, &body[..body.len().min(300)]))?;
 
     let ip = json
         .get("ipAddress")
