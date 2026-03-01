@@ -114,7 +114,6 @@ export const api = {
     }),
 
   provision: (body: {
-    app_url: string;
     api_key: string;
     clock_id: string;
   }) =>
