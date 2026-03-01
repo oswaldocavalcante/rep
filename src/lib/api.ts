@@ -6,13 +6,8 @@
 
 const STORAGE_KEY = "rep_token";
 
-// Em Tauri dev o servidor está em outra porta; na web é relativo
-const BASE_URL =
-  typeof window !== "undefined" &&
-  window.location.port !== "" &&
-  window.location.port !== "3001"
-    ? `${window.location.protocol}//${window.location.hostname}:3001`
-    : "";
+// Na web servida pelo LXC (porta 3001) ou pelo proxy Vite em dev, caminhos relativos funcionam.
+const BASE_URL = "";
 
 export function getToken(): string | null {
   try {

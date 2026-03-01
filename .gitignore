@@ -16,3 +16,4 @@ src-tauri/target/
 # Editor
 .DS_Store
 .vscode/settings.json
+.env.development
