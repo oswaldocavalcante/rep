@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { api } from "../lib/api";
 
 interface LogEntry {
   id: number;
@@ -30,7 +30,7 @@ export default function Logs() {
   const loadLogs = async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
-      const result: LogEntry[] = await invoke("get_logs");
+      const result = await api.getLogs();
       setLogs(result);
     } catch (e) {
       console.error("Failed to load logs:", e);

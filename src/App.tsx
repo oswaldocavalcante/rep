@@ -1,20 +1,70 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Config from "./pages/Config";
 import Status from "./pages/Status";
 import Logs from "./pages/Logs";
+import Login from "./pages/Login";
+import { api, clearToken, getToken } from "./lib/api";
 
 type Page = "config" | "status" | "logs";
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>("status");
+  // null = verificando, false = não autenticado, true = autenticado
+  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    // Verifica sessão existente
+    if (!getToken()) {
+      setAuthenticated(false);
+      return;
+    }
+    api.me()
+      .then(() => setAuthenticated(true))
+      .catch(() => setAuthenticated(false));
+
+    // Ouve evento de 401 disparado por apiFetch
+    const handleUnauthorized = () => setAuthenticated(false);
+    window.addEventListener("rep:unauthorized", handleUnauthorized);
+    return () => window.removeEventListener("rep:unauthorized", handleUnauthorized);
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await api.logout();
+    } catch {
+      // ignora erro no logout
+    }
+    clearToken();
+    setAuthenticated(false);
+  };
+
+  // Aguardando verificação
+  if (authenticated === null) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <p className="text-gray-500">Carregando...</p>
+      </div>
+    );
+  }
+
+  // Não autenticado
+  if (!authenticated) {
+    return <Login onLogin={() => setAuthenticated(true)} />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-100">
       <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900">
             Ryanne Ponto Agent
           </h1>
+          <button
+            onClick={handleLogout}
+            className="text-sm text-gray-500 hover:text-gray-700"
+          >
+            Sair
+          </button>
         </div>
       </header>
 
@@ -65,3 +115,4 @@ function App() {
 }
 
 export default App;
+

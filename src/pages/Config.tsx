@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { api } from "../lib/api";
 
 interface Config {
   device_ip: string;
@@ -7,6 +7,7 @@ interface Config {
   device_password: string;
   app_url: string;
   api_key: string;
+  clock_id: string;
   sync_interval_secs: number;
 }
 
@@ -16,6 +17,7 @@ export default function Config() {
   const [devicePassword, setDevicePassword] = useState("");
   const [appUrl, setAppUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [clockId, setClockId] = useState("");
   const [syncInterval, setSyncInterval] = useState(5);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<"success" | "error" | null>(null);
@@ -28,12 +30,13 @@ export default function Config() {
 
   const loadConfig = async () => {
     try {
-      const config: Config = await invoke("load_config");
+      const config = await api.getConfig() as unknown as Config;
       setDeviceIp(config.device_ip || "");
       setDeviceUser(config.device_user || "admin");
       setDevicePassword(config.device_password || "");
       setAppUrl(config.app_url || "");
       setApiKey(config.api_key || "");
+      setClockId(config.clock_id || "");
       setSyncInterval(config.sync_interval_secs ? Math.floor(config.sync_interval_secs / 60) : 5);
     } catch (e) {
       console.error("Failed to load config:", e);
@@ -44,13 +47,14 @@ export default function Config() {
     setSaving(true);
     setSaveMessage(null);
     try {
-      await invoke("save_config", {
-        deviceIp,
-        deviceUser,
-        devicePassword,
-        appUrl,
-        apiKey,
-        syncIntervalSecs: syncInterval * 60,
+      await api.saveConfig({
+        device_ip: deviceIp,
+        device_user: deviceUser,
+        device_password: devicePassword,
+        app_url: appUrl,
+        api_key: apiKey,
+        clock_id: clockId,
+        sync_interval_secs: syncInterval * 60,
       });
       setSaveMessage("success");
     } catch (e) {
@@ -64,12 +68,12 @@ export default function Config() {
     setTesting(true);
     setTestResult(null);
     try {
-      const result: boolean = await invoke("test_connection", {
-        deviceIp,
-        deviceUser,
-        devicePassword,
+      const result = await api.testConnection({
+        device_ip: deviceIp,
+        device_user: deviceUser,
+        device_password: devicePassword,
       });
-      setTestResult(result ? "success" : "error");
+      setTestResult(result.success ? "success" : "error");
     } catch (e) {
       console.error("Connection test failed:", e);
       setTestResult("error");
@@ -150,6 +154,18 @@ export default function Config() {
                   type="password"
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  ID do Relógio
+                </label>
+                <input
+                  type="text"
+                  value={clockId}
+                  onChange={(e) => setClockId(e.target.value)}
+                  placeholder="ID cadastrado em Relógios ponto"
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
                 />
               </div>

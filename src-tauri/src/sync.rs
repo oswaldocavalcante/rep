@@ -42,6 +42,63 @@ async fn report_sync_status(app_url: &str, api_key: &str, clock_id: &str, last_s
         .await;
 }
 
+/// Busca as credenciais do dispositivo REP via sistema.
+/// Retorna (ipAddress, deviceUser, devicePassword).
+pub async fn fetch_device_credentials(
+    app_url: &str,
+    api_key: &str,
+    clock_id: &str,
+) -> Result<(String, String, String), String> {
+    if app_url.is_empty() || api_key.is_empty() || clock_id.is_empty() {
+        return Err("app_url, api_key e clock_id são obrigatórios".to_string());
+    }
+    let url = format!("{}/api/time-clocks/{}/config", app_url, clock_id);
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let resp = client
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", api_key))
+        .send()
+        .await
+        .map_err(|e| format!("Erro de rede ao buscar config: {}", e))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!("Servidor retornou {}: {}", status, body));
+    }
+
+    let json: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("Erro ao parsear resposta: {}", e))?;
+
+    let ip = json
+        .get("ipAddress")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let user = json
+        .get("deviceUser")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let password = json
+        .get("devicePassword")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    if ip.is_empty() {
+        return Err("ipAddress não encontrado na resposta do sistema".to_string());
+    }
+
+    Ok((ip, user, password))
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncResult {
     pub success: bool,
@@ -52,6 +109,40 @@ pub struct SyncResult {
 pub async fn sync(config: &Config) -> Result<SyncResult, String> {
     log::info!("Starting sync...");
     let _ = state::save_log("info", 0, "Iniciando sincronização");
+
+    // Auto-provisionamento: se device_ip vazio mas clock_id+app_url presentes, busca credenciais
+    let config_owned;
+    let config = if config.device_ip.is_empty()
+        && !config.clock_id.is_empty()
+        && !config.app_url.is_empty()
+    {
+        log::info!("device_ip vazio, tentando provisionamento automático via sistema...");
+        let _ = state::save_log("info", 0, "Buscando credenciais do dispositivo no sistema...");
+        match fetch_device_credentials(&config.app_url, &config.api_key, &config.clock_id).await {
+            Ok((ip, user, password)) => {
+                let mut c = config.clone();
+                c.device_ip = ip.clone();
+                c.device_user = user;
+                c.device_password = password;
+                // Persiste as credenciais obtidas
+                if let Err(e) = crate::config::save_config(&c) {
+                    log::warn!("Erro ao persistir credenciais provisionadas: {}", e);
+                } else {
+                    log::info!("Credenciais provisionadas e salvas: ip={}", ip);
+                }
+                config_owned = c;
+                &config_owned
+            }
+            Err(e) => {
+                let msg = format!("Provisionamento falhou: {}", e);
+                let _ = state::save_log("error", 0, &msg);
+                return Err(msg);
+            }
+        }
+    } else {
+        config
+    };
+
 
     let current_state = state::load_state().map_err(|e| e.to_string())?;
     let last_nsr = current_state.last_nsr;

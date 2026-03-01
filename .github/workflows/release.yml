@@ -1,0 +1,70 @@
+name: Release rep-server
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build e publicar release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Rust ────────────────────────────────────────────────────────────────
+      - name: Instala Rust stable + target musl
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+
+      - name: Instala musl-tools
+        run: sudo apt-get install -y musl-tools
+
+      - name: Build rep-server (Linux musl estático)
+        working-directory: src-tauri
+        run: cargo build --release --bin rep-server --target x86_64-unknown-linux-musl
+
+      - name: Copia binário para raiz
+        run: cp src-tauri/target/x86_64-unknown-linux-musl/release/rep-server rep-server-linux-x86_64
+
+      # ── UI ──────────────────────────────────────────────────────────────────
+      - name: Instala Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instala dependências npm
+        run: npm ci
+
+      - name: Build UI
+        run: npm run build
+
+      - name: Empacota UI em tarball
+        run: tar -czf dist.tar.gz -C dist .
+
+      # ── Release ─────────────────────────────────────────────────────────────
+      - name: Cria GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            rep-server-linux-x86_64
+            dist.tar.gz
+            deploy/install-lxc.sh
+            deploy/rep-server.service
+          generate_release_notes: true

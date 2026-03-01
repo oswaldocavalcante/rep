@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { api } from "../lib/api";
 
 interface SyncResult {
   success: boolean;
@@ -48,7 +48,7 @@ export default function Status() {
 
   const loadState = async () => {
     try {
-      const statusData = await invoke<SyncStatus>("get_sync_status");
+      const statusData = await api.getStatus() as unknown as SyncStatus;
       setLastSync(
         statusData.last_synced_at
           ? new Date(statusData.last_synced_at).toLocaleString("pt-BR")
@@ -72,20 +72,20 @@ export default function Status() {
     setStatus("syncing");
     setErrorMessage("");
     try {
-      const result: SyncResult = await invoke("sync_now_locked");
+      const result: SyncResult = await api.syncNow();
       await loadState();
       await loadCollectedPreview();
       setStatus(result.success ? "ok" : "error");
       setErrorMessage(result.message);
-    } catch (e: any) {
+    } catch (e: unknown) {
       setStatus("error");
-      setErrorMessage(e.toString());
+      setErrorMessage(e instanceof Error ? e.message : String(e));
     }
   };
 
   const loadCollectedPreview = async () => {
     try {
-      const logs: LogEntry[] = await invoke("get_logs");
+      const logs: LogEntry[] = await api.getLogs();
       const preview = logs.find((log) => log.message?.startsWith("COLETA_PREVIEW"));
       if (preview) {
         setCollectedText(`[${preview.timestamp}]\n${preview.message}`);
@@ -104,14 +104,14 @@ export default function Status() {
     setStatus("syncing");
     setErrorMessage("");
     try {
-      const result: SyncResult = await invoke("reprocess_history_locked");
+      const result: SyncResult = await api.reprocessHistory();
       await loadState();
       await loadCollectedPreview();
       setStatus("ok");
       setErrorMessage(`Reprocessamento executado. ${result.message}`);
-    } catch (e: any) {
+    } catch (e: unknown) {
       setStatus("error");
-      setErrorMessage(e.toString());
+      setErrorMessage(e instanceof Error ? e.message : String(e));
     }
   };
 

@@ -1,0 +1,27 @@
+[Unit]
+Description=Ryanne REP Headless Punch-Clock Service
+Documentation=https://github.com/ryanne/rep
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rep
+Group=rep
+WorkingDirectory=/var/lib/rep
+EnvironmentFile=-/etc/rep/env
+ExecStart=/usr/local/bin/rep-server
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=rep-server
+
+# Segurança
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/rep /etc/rep
+
+[Install]
+WantedBy=multi-user.target
