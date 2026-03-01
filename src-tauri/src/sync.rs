@@ -1,5 +1,5 @@
 use crate::collector;
-use crate::config::Config;
+use crate::config::{Config, RYANNE_API_URL};
 use crate::idclass;
 use crate::state;
 use chrono::Utc;
@@ -18,11 +18,11 @@ fn normalize_code(value: &str) -> String {
 
 /// Reporta o status da última sincronização ao endpoint /api/time-clocks/:id/sync-status.
 /// Falha silenciosamente para não interromper o fluxo principal.
-async fn report_sync_status(app_url: &str, api_key: &str, clock_id: &str, last_sync_at: Option<&str>, last_error: Option<&str>) {
-    if clock_id.is_empty() || app_url.is_empty() || api_key.is_empty() {
+async fn report_sync_status(api_key: &str, clock_id: &str, last_sync_at: Option<&str>, last_error: Option<&str>) {
+    if clock_id.is_empty() || api_key.is_empty() {
         return;
     }
-    let url = format!("{}/api/time-clocks/{}/sync-status", app_url, clock_id);
+    let url = format!("{}/api/time-clocks/{}/sync-status", RYANNE_API_URL, clock_id);
     let mut body = serde_json::json!({});
     if let Some(ts) = last_sync_at {
         body["lastSyncAt"] = serde_json::Value::String(ts.to_string());
@@ -45,14 +45,13 @@ async fn report_sync_status(app_url: &str, api_key: &str, clock_id: &str, last_s
 /// Busca as credenciais do dispositivo REP via sistema.
 /// Retorna (ipAddress, deviceUser, devicePassword).
 pub async fn fetch_device_credentials(
-    app_url: &str,
     api_key: &str,
     clock_id: &str,
 ) -> Result<(String, String, String), String> {
-    if app_url.is_empty() || api_key.is_empty() || clock_id.is_empty() {
-        return Err("app_url, api_key e clock_id são obrigatórios".to_string());
+    if api_key.is_empty() || clock_id.is_empty() {
+        return Err("api_key e clock_id são obrigatórios".to_string());
     }
-    let url = format!("{}/api/time-clocks/{}/config", app_url, clock_id);
+    let url = format!("{}/api/time-clocks/{}/config", RYANNE_API_URL, clock_id);
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(15))
         .build()
@@ -110,15 +109,15 @@ pub async fn sync(config: &Config) -> Result<SyncResult, String> {
     log::info!("Starting sync...");
     let _ = state::save_log("info", 0, "Iniciando sincronização");
 
-    // Auto-provisionamento: se device_ip vazio mas clock_id+app_url presentes, busca credenciais
+    // Auto-provisionamento: se device_ip vazio mas clock_id+api_key presentes, busca credenciais
     let config_owned;
     let config = if config.device_ip.is_empty()
         && !config.clock_id.is_empty()
-        && !config.app_url.is_empty()
+        && !config.api_key.is_empty()
     {
         log::info!("device_ip vazio, tentando provisionamento automático via sistema...");
         let _ = state::save_log("info", 0, "Buscando credenciais do dispositivo no sistema...");
-        match fetch_device_credentials(&config.app_url, &config.api_key, &config.clock_id).await {
+        match fetch_device_credentials(&config.api_key, &config.clock_id).await {
             Ok((ip, user, password)) => {
                 let mut c = config.clone();
                 c.device_ip = ip.clone();
@@ -200,7 +199,7 @@ pub async fn sync(config: &Config) -> Result<SyncResult, String> {
             );
             let _ = state::save_log("info", 0, &mapping_msg);
 
-            let allowed_codes = collector::fetch_allowed_employee_codes(&config.app_url, &config.api_key).await;
+            let allowed_codes = collector::fetch_allowed_employee_codes(&config.api_key).await;
             let allowed_codes = match allowed_codes {
                 Ok(codes) => codes,
                 Err(error) => {
@@ -260,7 +259,7 @@ pub async fn sync(config: &Config) -> Result<SyncResult, String> {
             };
             let _ = state::save_log("info", recs.len() as u32, &preview_message);
 
-            let send_result = collector::send_records(&config.app_url, &config.api_key, &config.clock_id, recs.clone()).await;
+            let send_result = collector::send_records(&config.api_key, &config.clock_id, recs.clone()).await;
 
             match send_result {
                 Ok(send_stats) => {
@@ -282,7 +281,7 @@ pub async fn sync(config: &Config) -> Result<SyncResult, String> {
                     log::info!("Sync completed successfully");
 
                     let ts = Utc::now().to_rfc3339();
-                    report_sync_status(&config.app_url, &config.api_key, &config.clock_id, Some(&ts), None).await;
+                    report_sync_status(&config.api_key, &config.clock_id, Some(&ts), None).await;
                     
                     Ok(SyncResult {
                         success: true,
@@ -292,14 +291,14 @@ pub async fn sync(config: &Config) -> Result<SyncResult, String> {
                 }
                 Err(e) => {
                     let _ = state::save_log("error", 0, &e);
-                    report_sync_status(&config.app_url, &config.api_key, &config.clock_id, None, Some(&e)).await;
+                    report_sync_status(&config.api_key, &config.clock_id, None, Some(&e)).await;
                     Err(e)
                 }
             }
         }
         Err(e) => {
             let _ = state::save_log("error", 0, &e);
-            report_sync_status(&config.app_url, &config.api_key, &config.clock_id, None, Some(&e)).await;
+            report_sync_status(&config.api_key, &config.clock_id, None, Some(&e)).await;
             Err(e)
         }
     };

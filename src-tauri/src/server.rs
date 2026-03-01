@@ -198,7 +198,6 @@ struct ConfigUpdate {
     device_ip: Option<String>,
     device_user: Option<String>,
     device_password: Option<String>,
-    app_url: Option<String>,
     api_key: Option<String>,
     clock_id: Option<String>,
     sync_interval_secs: Option<u64>,
@@ -228,9 +227,6 @@ async fn put_config_handler(Json(body): Json<ConfigUpdate>) -> impl IntoResponse
             c.device_password = v;
         }
     }
-    if let Some(v) = body.app_url {
-        c.app_url = v;
-    }
     if let Some(v) = body.api_key {
         c.api_key = v;
     }
@@ -253,18 +249,16 @@ async fn put_config_handler(Json(body): Json<ConfigUpdate>) -> impl IntoResponse
 
 #[derive(Deserialize)]
 struct ProvisionRequest {
-    app_url: String,
     api_key: String,
     clock_id: String,
 }
 
 async fn provision_handler(Json(body): Json<ProvisionRequest>) -> impl IntoResponse {
     let mut c = config::load_config().unwrap_or_default();
-    c.app_url = body.app_url.clone();
     c.api_key = body.api_key.clone();
     c.clock_id = body.clock_id.clone();
 
-    match sync::fetch_device_credentials(&c.app_url, &c.api_key, &c.clock_id).await {
+    match sync::fetch_device_credentials(&c.api_key, &c.clock_id).await {
         Ok((ip, user, password)) => {
             c.device_ip = ip.clone();
             c.device_user = user;

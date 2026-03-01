@@ -3,12 +3,14 @@ use std::fs;
 use std::io;
 use std::path::PathBuf;
 
+/// URL fixa do sistema Ryanne — não configurável pelo usuário.
+pub const RYANNE_API_URL: &str = "https://sistema.ryanne.com.br";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub device_ip: String,
     pub device_user: String,
     pub device_password: String,
-    pub app_url: String,
     pub api_key: String,
     pub clock_id: String,
     pub sync_interval_secs: u64,
@@ -20,7 +22,6 @@ impl Default for Config {
             device_ip: String::new(),
             device_user: "admin".to_string(),
             device_password: String::new(),
-            app_url: String::new(),
             api_key: String::new(),
             clock_id: String::new(),
             sync_interval_secs: 300,

@@ -77,7 +77,6 @@ fn save_config(
     device_ip: String,
     device_user: String,
     device_password: String,
-    app_url: String,
     api_key: String,
     clock_id: String,
     sync_interval_secs: u64,
@@ -86,7 +85,6 @@ fn save_config(
         device_ip,
         device_user,
         device_password,
-        app_url,
         api_key,
         clock_id,
         sync_interval_secs,
@@ -179,7 +177,6 @@ fn main() {
 
                     if !config.device_ip.is_empty()
                         && !config.device_password.is_empty()
-                        && !config.app_url.is_empty()
                         && !config.api_key.is_empty()
                     {
                         if let Err(error) = run_sync_once(sync_lock).await {

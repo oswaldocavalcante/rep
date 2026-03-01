@@ -20,26 +20,23 @@ async fn main() {
     let web_dir: Option<String> = std::env::var("REP_WEB_DIR").ok().filter(|v| !v.is_empty());
 
     // Provisionamento automático na inicialização (se variáveis de ambiente fornecidas)
-    let env_app_url = std::env::var("REP_APP_URL").unwrap_or_default();
     let env_api_key = std::env::var("REP_API_KEY").unwrap_or_default();
     let env_clock_id = std::env::var("REP_CLOCK_ID").unwrap_or_default();
 
-    if !env_app_url.is_empty() && !env_api_key.is_empty() && !env_clock_id.is_empty() {
+    if !env_api_key.is_empty() && !env_clock_id.is_empty() {
         log::info!("Variáveis de provisionamento detectadas, verificando config...");
         let mut cfg = config::load_config().unwrap_or_default();
 
         // Atualiza campos de provisionamento se diferentes do atual
-        let needs_update = cfg.app_url != env_app_url
-            || cfg.api_key != env_api_key
+        let needs_update = cfg.api_key != env_api_key
             || cfg.clock_id != env_clock_id;
 
         if needs_update {
-            cfg.app_url = env_app_url.clone();
             cfg.api_key = env_api_key.clone();
             cfg.clock_id = env_clock_id.clone();
 
             log::info!("Buscando credenciais do dispositivo via sistema...");
-            match sync::fetch_device_credentials(&env_app_url, &env_api_key, &env_clock_id).await {
+            match sync::fetch_device_credentials(&env_api_key, &env_clock_id).await {
                 Ok((ip, user, password)) => {
                     cfg.device_ip = ip;
                     cfg.device_user = user;
@@ -73,7 +70,7 @@ async fn main() {
                 }
             };
 
-            if cfg.device_ip.is_empty() || cfg.app_url.is_empty() {
+            if cfg.device_ip.is_empty() || cfg.api_key.is_empty() {
                 log::debug!("Config incompleta, aguardando...");
                 sleep(Duration::from_secs(30)).await;
                 continue;

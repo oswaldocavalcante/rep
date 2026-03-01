@@ -1,3 +1,4 @@
+use crate::config::RYANNE_API_URL;
 use crate::idclass::PunchRecord;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -31,7 +32,6 @@ struct PunchRecordDto {
 }
 
 pub async fn send_records(
-    app_url: &str,
     api_key: &str,
     clock_id: &str,
     records: Vec<PunchRecord>,
@@ -46,7 +46,7 @@ pub async fn send_records(
         });
     }
 
-    let url = format!("{}/api/punch-collector", app_url);
+    let url = format!("{}/api/punch-collector", RYANNE_API_URL);
     let clock_id_opt: Option<String> = if clock_id.is_empty() { None } else { Some(clock_id.to_string()) };
     
     let request_records: Vec<PunchRecordDto> = records
@@ -122,10 +122,9 @@ struct EmployeeCodesResponse {
 }
 
 pub async fn fetch_allowed_employee_codes(
-    app_url: &str,
     api_key: &str,
 ) -> Result<HashSet<String>, String> {
-    let url = format!("{}/api/punch-collector/employees", app_url);
+    let url = format!("{}/api/punch-collector/employees", RYANNE_API_URL);
 
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
