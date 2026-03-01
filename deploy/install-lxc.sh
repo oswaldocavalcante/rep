@@ -187,6 +187,7 @@ pct exec "${CTID}" -- chmod +x /usr/local/bin/rep-server
 # ── Copia UI estática ─────────────────────────────────────────────────────────
 echo "══ Copiando UI web..."
 pct exec "${CTID}" -- rm -rf /usr/share/rep/web
+pct exec "${CTID}" -- mkdir -p /usr/share/rep/web
 (cd "$WEB_DIR_PATH" && tar -c .) | pct exec "${CTID}" -- bash -c "tar -x -C /usr/share/rep/web"
 echo "   UI copiada."
 
