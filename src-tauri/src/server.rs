@@ -330,7 +330,23 @@ struct TestConnectionRequest {
 }
 
 async fn test_connection_handler(Json(body): Json<TestConnectionRequest>) -> impl IntoResponse {
-    match idclass::login(&body.device_ip, &body.device_user, &body.device_password).await {
+    // Se a senha recebida é o placeholder (••••••••), usa a senha real do config
+    let password = if body.device_password.starts_with('•') {
+        match config::load_config() {
+            Ok(c) => c.device_password,
+            Err(e) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"success": false, "error": e.to_string()})),
+                )
+                    .into_response()
+            }
+        }
+    } else {
+        body.device_password
+    };
+
+    match idclass::login(&body.device_ip, &body.device_user, &password).await {
         Ok(_) => Json(json!({"success": true})).into_response(),
         Err(e) => (
             StatusCode::BAD_GATEWAY,
