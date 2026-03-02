@@ -320,48 +320,52 @@ impl IdClassClient {
             if line.is_empty() || line.starts_with("AFD") {
                 continue;
             }
-            
-            if line.len() < 29 {
+
+            // Linha tipo 3 = marcação de ponto (Portaria MTE 595/2007)
+            // Formato (0-indexed):
+            //   0..9  = NSR (9 dígitos)
+            //   9     = tipo de registro ('3' = marcação)
+            //  10..18 = data DDMMAAAA
+            //  18..22 = hora HHMM
+            //  22     = direção (0=desconhecido, 1=entrada, 2=saída)
+            //  23..34 = PIS/PASEP (11 dígitos)
+            //  34..38 = CRC (4 hex)
+            if line.len() < 34 {
                 log::warn!("Skipping malformed AFD line (len={}): {}", line.len(), line);
                 continue;
             }
 
-            // NSR: primeiros 9 caracteres da linha AFD (Portaria 595/2007)
+            // NSR: primeiros 9 caracteres da linha AFD
             let nsr: u64 = line.get(0..9)
                 .and_then(|s| s.trim().parse().ok())
                 .unwrap_or(0);
 
-            let Some(code_raw) = line.get(23..28) else {
-                log::warn!("Skipping AFD line without valid code range: {}", line);
+            let Some(direction_raw) = line.get(22..23) else {
+                log::warn!("Skipping AFD line without direction field: {}", line);
                 continue;
             };
-            let Some(type_raw) = line.get(28..29) else {
-                log::warn!("Skipping AFD line without valid type range: {}", line);
+            let Some(pis_raw) = line.get(23..34) else {
+                log::warn!("Skipping AFD line without PIS range: {}", line);
                 continue;
             };
-            let pis_raw = line.get(29..41).unwrap_or("");
 
-            let digits_only: String = line.chars().filter(|c| c.is_ascii_digit()).collect();
-            let Some(timestamp) = Self::parse_timestamp_from_digits(&digits_only) else {
+            // Extrai timestamp com base nos dígitos da linha
+            // (usa somente os primeiros 22 chars para evitar capturar dígitos do PIS)
+            let prefix_digits: String = line[..22].chars().filter(|c| c.is_ascii_digit()).collect();
+            let Some(timestamp) = Self::parse_timestamp_from_digits(&prefix_digits) else {
                 log::warn!("Skipping AFD line with invalid datetime: {}", line);
                 continue;
             };
 
-            let code = code_raw.trim_start_matches('0');
-            let pis = pis_raw.trim_start_matches('0');
-            let record_type = match type_raw {
+            let record_type = match direction_raw {
                 "1" => RecordType::ClockIn,
                 "2" => RecordType::ClockOut,
                 _ => RecordType::Unknown,
             };
 
-            let employee_code = if !pis.is_empty() {
-                pis.to_string()
-            } else {
-                code.to_string()
-            };
+            let employee_code = pis_raw.trim_start_matches('0').to_string();
             if employee_code.is_empty() {
-                log::warn!("Skipping AFD line without employee code/PIS: {}", line);
+                log::warn!("Skipping AFD line with empty PIS: {}", line);
                 continue;
             }
 
