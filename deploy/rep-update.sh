@@ -29,7 +29,7 @@ error()   { echo "[rep-ctl] ERRO: $*" >&2; exit 1; }
 current_version() {
     "$BINARY_DEST" --version 2>/dev/null \
         | grep -oP '\d+\.\d+\.\d+' | head -1 \
-        || echo "desconhecida"
+        || echo "0.0.0"
 }
 
 fetch_release_json() {
@@ -55,7 +55,10 @@ semver_gt() {
     local IFS=.
     local a=($1) b=($2)
     for i in 0 1 2; do
-        local ai="${a[$i]:-0}" bi="${b[$i]:-0}"
+        local ai bi
+        # Remove caracteres não-numéricos para evitar erro em contexto aritmético
+        ai="${a[$i]:-0}"; ai="${ai//[^0-9]/}"; ai="${ai:-0}"
+        bi="${b[$i]:-0}"; bi="${bi//[^0-9]/}"; bi="${bi:-0}"
         if (( ai > bi )); then return 0; fi
         if (( ai < bi )); then return 1; fi
     done
@@ -66,8 +69,10 @@ semver_gt() {
 cmd_version() {
     local current latest
     current=$(current_version)
-    info "Versão atual:    $current"
-    info "Consultando GitHub..."
+    local display="$current"
+    [[ "$current" == "0.0.0" ]] && display="desconhecida"
+    info "Versão atual: $display"
+    info "Consultando GitHub por novas versões..."
     latest=$(latest_version) || { warn "Não foi possível consultar o GitHub."; exit 0; }
     info "Versão mais nova: $latest"
     if semver_gt "$latest" "$current"; then
