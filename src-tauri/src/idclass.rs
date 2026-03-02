@@ -344,7 +344,7 @@ impl IdClassClient {
                         &format!("{:02}{:02}{:04}{:02}{:02}00", d, m, y, hh, mm),
                         "%d%m%Y%H%M%S",
                     ) {
-                        Ok(dt) => dt.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                        Ok(dt) => dt.format("%Y-%m-%dT%H:%M:%S-03:00").to_string(),
                         Err(_) => {
                             log::warn!("Skipping AFD line with invalid date fields: {}", line);
                             continue;
