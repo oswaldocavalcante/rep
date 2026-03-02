@@ -16,6 +16,15 @@ pub struct SendStats {
     pub inserted: u32,
     pub duplicates: u32,
     pub ignored: u32,
+    #[serde(default)]
+    pub errors: Vec<CollectorError>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CollectorError {
+    #[serde(rename = "employeeCode")]
+    pub employee_code: String,
+    pub message: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -43,6 +52,7 @@ pub async fn send_records(
             inserted: 0,
             duplicates: 0,
             ignored: 0,
+            errors: vec![],
         });
     }
 
@@ -85,6 +95,7 @@ pub async fn send_records(
         inserted: 0,
         duplicates: 0,
         ignored: 0,
+        errors: vec![],
     };
 
     for (index, chunk) in request_records.chunks(chunk_size).enumerate() {
@@ -101,6 +112,7 @@ pub async fn send_records(
         total.inserted += stats.inserted;
         total.duplicates += stats.duplicates;
         total.ignored += stats.ignored;
+        total.errors.extend(stats.errors);
     }
 
     log::info!(
@@ -177,6 +189,18 @@ async fn send_chunk_with_retry(
                         .json()
                         .await
                         .map_err(|e| format!("Failed to parse server response: {}", e))?;
+                    // Loga primeiros 5 erros para diagnóstico
+                    if !stats.errors.is_empty() {
+                        let sample: Vec<String> = stats.errors.iter().take(5)
+                            .map(|e| format!("{}: {}", e.employee_code, e.message))
+                            .collect();
+                        log::warn!("Ignored records sample: {}", sample.join(" | "));
+                        let _ = crate::state::save_log(
+                            "warn",
+                            stats.ignored,
+                            &format!("Registros ignorados (amostra): {}", sample.join(" | ")),
+                        );
+                    }
                     return Ok(stats);
                 } else {
                     let status = response.status();

@@ -1,7 +1,6 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-use chrono::{Datelike, NaiveDateTime};
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -44,27 +43,6 @@ impl IdClassClient {
         }
         let trimmed = digits_only.trim_start_matches('0');
         if trimmed.is_empty() { "0".to_string() } else { trimmed.to_string() }
-    }
-
-    fn parse_timestamp_from_digits(digits: &str) -> Option<String> {
-        if digits.len() < 14 {
-            return None;
-        }
-
-        for start in 0..=(digits.len() - 14) {
-            let chunk = &digits[start..start + 14];
-
-            for fmt in ["%d%m%Y%H%M%S", "%Y%m%d%H%M%S"] {
-                if let Ok(parsed) = NaiveDateTime::parse_from_str(chunk, fmt) {
-                    let year = parsed.date().year();
-                    if (2000..=2100).contains(&year) {
-                        return Some(parsed.format("%Y-%m-%dT%H:%M:%SZ").to_string());
-                    }
-                }
-            }
-        }
-
-        None
     }
 
     pub fn new(ip: &str) -> Self {
@@ -324,7 +302,7 @@ impl IdClassClient {
             // Linha tipo 3 = marcação de ponto (Portaria MTE 595/2007)
             // Formato (0-indexed):
             //   0..9  = NSR (9 dígitos)
-            //   9     = tipo de registro ('3' = marcação)
+            //   9     = tipo de linha ('3' = marcação de ponto)
             //  10..18 = data DDMMAAAA
             //  18..22 = hora HHMM
             //  22     = direção (0=desconhecido, 1=entrada, 2=saída)
@@ -335,29 +313,48 @@ impl IdClassClient {
                 continue;
             }
 
-            // NSR: primeiros 9 caracteres da linha AFD
+            // Só processa linhas de marcação de ponto (tipo 3)
+            if line.get(9..10) != Some("3") {
+                continue;
+            }
+
+            // NSR: primeiros 9 caracteres
             let nsr: u64 = line.get(0..9)
                 .and_then(|s| s.trim().parse().ok())
                 .unwrap_or(0);
 
-            let Some(direction_raw) = line.get(22..23) else {
-                log::warn!("Skipping AFD line without direction field: {}", line);
-                continue;
-            };
-            let Some(pis_raw) = line.get(23..34) else {
-                log::warn!("Skipping AFD line without PIS range: {}", line);
-                continue;
-            };
+            let Some(date_raw) = line.get(10..18) else { continue; }; // DDMMAAAA
+            let Some(time_raw) = line.get(18..22) else { continue; }; // HHMM
+            let Some(direction_raw) = line.get(22..23) else { continue; };
+            let Some(pis_raw) = line.get(23..34) else { continue; };
 
-            // Extrai timestamp com base em todos os dígitos da linha.
-            // O AFD usa HHMM (sem segundos), então a janela de 14 dígitos que o parser
-            // encontra é DDMMYYYYHHMMxx onde "xx" são os 2 primeiros dígitos do PIS —
-            // o timestamp resultante difere no máximo 59s do real, dentro da janela de
-            // deduplicação de 60s usada pelo servidor.
-            let digits_only: String = line.chars().filter(|c| c.is_ascii_digit()).collect();
-            let Some(timestamp) = Self::parse_timestamp_from_digits(&digits_only) else {
-                log::warn!("Skipping AFD line with invalid datetime: {}", line);
-                continue;
+            // Parseia DDMMAAAA + HHMM diretamente das posições fixas
+            let timestamp = match (
+                date_raw.get(0..2).and_then(|s| s.parse::<u32>().ok()), // DD
+                date_raw.get(2..4).and_then(|s| s.parse::<u32>().ok()), // MM
+                date_raw.get(4..8).and_then(|s| s.parse::<i32>().ok()), // AAAA
+                time_raw.get(0..2).and_then(|s| s.parse::<u32>().ok()), // HH
+                time_raw.get(2..4).and_then(|s| s.parse::<u32>().ok()), // MM
+            ) {
+                (Some(d), Some(m), Some(y), Some(hh), Some(mm))
+                    if y >= 2000 && y <= 2100 =>
+                {
+                    use chrono::NaiveDateTime;
+                    match NaiveDateTime::parse_from_str(
+                        &format!("{:02}{:02}{:04}{:02}{:02}00", d, m, y, hh, mm),
+                        "%d%m%Y%H%M%S",
+                    ) {
+                        Ok(dt) => dt.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                        Err(_) => {
+                            log::warn!("Skipping AFD line with invalid date fields: {}", line);
+                            continue;
+                        }
+                    }
+                }
+                _ => {
+                    log::warn!("Skipping AFD line with unparseable date: {}", line);
+                    continue;
+                }
             };
 
             let record_type = match direction_raw {
