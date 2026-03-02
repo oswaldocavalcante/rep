@@ -228,6 +228,18 @@ pct exec "${CTID}" -- bash -c "
   chown -R rep:rep /var/lib/rep /etc/rep
 "
 
+# ── Define senha inicial da UI web (mesma do root) ────────────────────────────
+echo "══ Configurando senha inicial da interface web..."
+AUTH_HASH=$(printf '%s' "${ROOT_PASSWORD}" | sha256sum | awk '{print $1}')
+pct exec "${CTID}" -- bash -c "
+  mkdir -p /var/lib/rep/.config/ryanne-ponto
+  printf 'password_hash = \"%s\"\n' '${AUTH_HASH}' \
+    > /var/lib/rep/.config/ryanne-ponto/auth.toml
+  chown -R rep:rep /var/lib/rep/.config
+  chmod 600 /var/lib/rep/.config/ryanne-ponto/auth.toml
+"
+echo "   Senha da UI definida (mesma do root)."
+
 # ── Copia binário ─────────────────────────────────────────────────────────────
 echo "══ Copiando binário rep-server..."
 pct push "${CTID}" "$BINARY_PATH" /usr/local/bin/rep-server
@@ -292,7 +304,7 @@ printf "║  Container ID : CT%-34s║\n" "${CTID}"
 printf "║  IP           : %-36s║\n" "${CT_IP}"
 printf "║  Painel web   : http://%-29s║\n" "${CT_IP}:${REP_PORT}"  printf "║  SSH          : ssh root@%-27s║\n" "${CT_IP}"printf "║  Serviço      : %-36s║\n" "${STATUS}"
 echo "╠══════════════════════════════════════════════════════╣"
-echo "║  Senha padrão de acesso ao painel: admin             ║"
+echo "║  Senha do painel web: a mesma definida para root     ║"
 echo "║  Recomendado: altere em Configurações → Senha        ║"
 echo "╚══════════════════════════════════════════════════════╝"
 
