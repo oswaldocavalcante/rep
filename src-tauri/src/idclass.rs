@@ -349,10 +349,13 @@ impl IdClassClient {
                 continue;
             };
 
-            // Extrai timestamp com base nos dígitos da linha
-            // (usa somente os primeiros 22 chars para evitar capturar dígitos do PIS)
-            let prefix_digits: String = line[..22].chars().filter(|c| c.is_ascii_digit()).collect();
-            let Some(timestamp) = Self::parse_timestamp_from_digits(&prefix_digits) else {
+            // Extrai timestamp com base em todos os dígitos da linha.
+            // O AFD usa HHMM (sem segundos), então a janela de 14 dígitos que o parser
+            // encontra é DDMMYYYYHHMMxx onde "xx" são os 2 primeiros dígitos do PIS —
+            // o timestamp resultante difere no máximo 59s do real, dentro da janela de
+            // deduplicação de 60s usada pelo servidor.
+            let digits_only: String = line.chars().filter(|c| c.is_ascii_digit()).collect();
+            let Some(timestamp) = Self::parse_timestamp_from_digits(&digits_only) else {
                 log::warn!("Skipping AFD line with invalid datetime: {}", line);
                 continue;
             };
