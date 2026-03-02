@@ -68,9 +68,10 @@ command -v curl >/dev/null 2>&1 || error "curl não encontrado"
 if [[ -z "$ROOT_PASSWORD" ]]; then
   echo ""
   while true; do
-    read -r -s -p "Digite a senha de root do container LXC: " ROOT_PASSWORD; echo
+    echo "══ Definição da senha de root do container LXC"
+    read -r -s -p "   Digite a senha: " ROOT_PASSWORD; echo
     [[ -z "$ROOT_PASSWORD" ]] && { echo "Senha não pode ser vazia."; continue; }
-    read -r -s -p "Confirme a senha: " ROOT_PASSWORD2; echo
+    read -r -s -p "   Confirme a senha: " ROOT_PASSWORD2; echo
     [[ "$ROOT_PASSWORD" == "$ROOT_PASSWORD2" ]] && break
     echo "As senhas não coincidem. Tente novamente."
   done
