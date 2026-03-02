@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Ryanne Ponto Agent - Desktop app and headless service for syncing time records"
 authors = ["Ryanne"]
 edition = "2021"
+default-run = "ryanne-ponto"
 
 [lib]
 name = "ryanne_ponto_lib"
