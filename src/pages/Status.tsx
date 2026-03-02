@@ -24,6 +24,14 @@ interface LogEntry {
   message: string;
 }
 
+interface VersionInfo {
+  current_version: string;
+  latest_version: string;
+  update_available: boolean;
+  release_url: string;
+  error?: string;
+}
+
 export default function Status() {
   const [lastSync, setLastSync] = useState<string>("--");
   const [recordsSent, setRecordsSent] = useState<number>(0);
@@ -32,10 +40,21 @@ export default function Status() {
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [showCollected, setShowCollected] = useState(false);
   const [collectedText, setCollectedText] = useState("Nenhuma coleta registrada ainda.");
+  const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
 
   useEffect(() => {
     loadState();
+    loadVersion();
   }, []);
+
+  const loadVersion = async () => {
+    try {
+      const info = await api.getVersion();
+      setVersionInfo(info);
+    } catch {
+      // silencioso — versão é informativa
+    }
+  };
 
   useEffect(() => {
     if (!showCollected) return;
@@ -117,6 +136,27 @@ export default function Status() {
 
   return (
     <div className="px-4 py-6 sm:px-0">
+      {/* Banner de atualização disponível */}
+      {versionInfo?.update_available && (
+        <div className="mb-4 flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className="text-blue-600 text-lg">↑</span>
+            <span className="text-sm text-blue-800">
+              Nova versão disponível:{" "}
+              <strong>v{versionInfo.latest_version}</strong>{" "}
+              (atual: v{versionInfo.current_version})
+            </span>
+          </div>
+          <a
+            href={versionInfo.release_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-blue-700 font-medium hover:underline"
+          >
+            Ver release →
+          </a>
+        </div>
+      )}
       <div className="bg-white shadow rounded-lg p-6">
         <h2 className="text-lg font-medium mb-4">Status da Sincronização</h2>
         
@@ -190,6 +230,16 @@ export default function Status() {
               value={collectedText}
               className="w-full h-56 rounded-md border border-gray-300 bg-gray-50 p-3 text-xs font-mono text-gray-800"
             />
+          )}
+        </div>
+
+        {/* Versão atual */}
+        <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+          <span className="text-xs text-gray-400">
+            rep-server{versionInfo ? ` v${versionInfo.current_version}` : ""}
+          </span>
+          {versionInfo && !versionInfo.update_available && (
+            <span className="text-xs text-green-600">✓ Atualizado</span>
           )}
         </div>
       </div>

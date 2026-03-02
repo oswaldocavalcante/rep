@@ -14,7 +14,7 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 
 use crate::auth::{hash_password, load_auth_config, save_auth_config, AuthConfig, TokenStore};
-use crate::{config, idclass, state, sync};
+use crate::{config, idclass, state, sync, updater};
 
 // ─── Estado compartilhado da aplicação ───────────────────────────────────────
 
@@ -62,6 +62,19 @@ pub async fn require_auth(
 
 async fn health_handler() -> impl IntoResponse {
     Json(json!({"status": "ok", "service": "rep-server"}))
+}
+
+async fn version_handler() -> impl IntoResponse {
+    match updater::check_update().await {
+        Ok(info) => Json(serde_json::to_value(info).unwrap()).into_response(),
+        Err(e) => Json(json!({
+            "current_version": updater::CURRENT_VERSION,
+            "latest_version": updater::CURRENT_VERSION,
+            "update_available": false,
+            "release_url": "",
+            "error": e,
+        })).into_response(),
+    }
 }
 
 #[derive(Deserialize)]
@@ -471,6 +484,7 @@ pub fn create_router(state: AppState, web_dir: Option<String>) -> Router {
         .route("/api/sync/reset", post(sync_reset_handler))
         .route("/api/sync/reprocess", post(sync_reprocess_handler))
         .route("/api/logs", get(logs_handler))
+        .route("/api/version", get(version_handler))
         .route("/api/auth/password", put(change_password_handler))
         .layer(middleware::from_fn_with_state(state.clone(), require_auth));
 

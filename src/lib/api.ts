@@ -142,4 +142,14 @@ export const api = {
     apiFetch<
       { id: number; timestamp: string; status: string; records_sent: number; message: string }[]
     >("/api/logs"),
+
+  // Versão
+  getVersion: () =>
+    apiFetch<{
+      current_version: string;
+      latest_version: string;
+      update_available: boolean;
+      release_url: string;
+      error?: string;
+    }>("/api/version"),
 };
