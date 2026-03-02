@@ -69,4 +69,7 @@ jobs:
             dist.tar.gz
             deploy/install-lxc.sh
             deploy/rep-server.service
+            deploy/rep-update.sh
+            deploy/rep-update.service
+            deploy/rep-update.timer
           generate_release_notes: true

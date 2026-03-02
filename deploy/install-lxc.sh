@@ -207,6 +207,25 @@ echo "══ Instalando serviço systemd..."
 pct push "${CTID}" "$SERVICE_PATH" /etc/systemd/system/rep-server.service
 pct exec "${CTID}" -- bash -c "systemctl daemon-reload && systemctl enable rep-server && systemctl start rep-server"
 
+# ── Instala rep-ctl (CLI + auto-updater) ──────────────────────────────────────
+echo "══ Instalando rep-ctl e timer de atualização automática..."
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+pct push "${CTID}" "${SCRIPT_DIR}/rep-update.sh"     /usr/local/bin/rep-ctl
+pct push "${CTID}" "${SCRIPT_DIR}/rep-update.service" /etc/systemd/system/rep-update.service
+pct push "${CTID}" "${SCRIPT_DIR}/rep-update.timer"   /etc/systemd/system/rep-update.timer
+pct exec "${CTID}" -- bash -c "
+  chmod +x /usr/local/bin/rep-ctl
+  # Permite que o usuário 'rep' reinicie o serviço via sudo sem senha
+  echo 'rep ALL=(ALL) NOPASSWD: /bin/systemctl restart rep-server' \
+    > /etc/sudoers.d/rep-ctl
+  chmod 440 /etc/sudoers.d/rep-ctl
+  systemctl daemon-reload
+  systemctl enable rep-update.timer
+  systemctl start rep-update.timer
+"
+echo "   rep-ctl instalado. Timer ativo (verifica a cada hora)."
+echo "   Use: rep-ctl version | rep-ctl check | rep-ctl update"
+
 # ── Verificação final ─────────────────────────────────────────────────────────
 echo "══ Verificando serviço..."
 sleep 3

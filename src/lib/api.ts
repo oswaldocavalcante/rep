@@ -152,4 +152,10 @@ export const api = {
       release_url: string;
       error?: string;
     }>("/api/version"),
+
+  // Atualização manual
+  triggerUpdate: () =>
+    apiFetch<{ success: boolean; output: string }>("/api/update", {
+      method: "POST",
+    }),
 };

@@ -77,6 +77,31 @@ async fn version_handler() -> impl IntoResponse {
     }
 }
 
+async fn update_handler() -> impl IntoResponse {
+    use tokio::process::Command;
+
+    match Command::new("/usr/local/bin/rep-ctl")
+        .arg("update")
+        .output()
+        .await
+    {
+        Ok(out) => {
+            let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+            let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+            let success = out.status.success();
+            Json(json!({
+                "success": success,
+                "output": format!("{}{}", stdout, stderr).trim().to_string(),
+            })).into_response()
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "success": false, "output": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
 #[derive(Deserialize)]
 struct LoginRequest {
     password: String,
@@ -485,6 +510,7 @@ pub fn create_router(state: AppState, web_dir: Option<String>) -> Router {
         .route("/api/sync/reprocess", post(sync_reprocess_handler))
         .route("/api/logs", get(logs_handler))
         .route("/api/version", get(version_handler))
+        .route("/api/update", post(update_handler))
         .route("/api/auth/password", put(change_password_handler))
         .layer(middleware::from_fn_with_state(state.clone(), require_auth));
 

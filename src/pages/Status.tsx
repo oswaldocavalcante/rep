@@ -41,6 +41,8 @@ export default function Status() {
   const [showCollected, setShowCollected] = useState(false);
   const [collectedText, setCollectedText] = useState("Nenhuma coleta registrada ainda.");
   const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
+  const [updating, setUpdating] = useState(false);
+  const [updateOutput, setUpdateOutput] = useState<string | null>(null);
 
   useEffect(() => {
     loadState();
@@ -53,6 +55,23 @@ export default function Status() {
       setVersionInfo(info);
     } catch {
       // silencioso — versão é informativa
+    }
+  };
+
+  const handleUpdate = async () => {
+    setUpdating(true);
+    setUpdateOutput(null);
+    try {
+      const result = await api.triggerUpdate();
+      setUpdateOutput(result.output);
+      if (result.success) {
+        // Recarrega info de versão após alguns segundos (serviço reinicia)
+        setTimeout(() => loadVersion(), 4000);
+      }
+    } catch (e: unknown) {
+      setUpdateOutput(e instanceof Error ? e.message : String(e));
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -138,23 +157,39 @@ export default function Status() {
     <div className="px-4 py-6 sm:px-0">
       {/* Banner de atualização disponível */}
       {versionInfo?.update_available && (
-        <div className="mb-4 flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
-          <div className="flex items-center gap-2">
-            <span className="text-blue-600 text-lg">↑</span>
-            <span className="text-sm text-blue-800">
-              Nova versão disponível:{" "}
-              <strong>v{versionInfo.latest_version}</strong>{" "}
-              (atual: v{versionInfo.current_version})
-            </span>
+        <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-blue-600 text-lg">↑</span>
+              <span className="text-sm text-blue-800">
+                Nova versão disponível:{" "}
+                <strong>v{versionInfo.latest_version}</strong>{" "}
+                (atual: v{versionInfo.current_version})
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <a
+                href={versionInfo.release_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-blue-700 font-medium hover:underline"
+              >
+                Ver release →
+              </a>
+              <button
+                onClick={handleUpdate}
+                disabled={updating}
+                className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              >
+                {updating ? "Atualizando..." : "Atualizar agora"}
+              </button>
+            </div>
           </div>
-          <a
-            href={versionInfo.release_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm text-blue-700 font-medium hover:underline"
-          >
-            Ver release →
-          </a>
+          {updateOutput && (
+            <pre className="text-xs font-mono bg-blue-100 rounded p-2 whitespace-pre-wrap text-blue-900 max-h-40 overflow-y-auto">
+              {updateOutput}
+            </pre>
+          )}
         </div>
       )}
       <div className="bg-white shadow rounded-lg p-6">
