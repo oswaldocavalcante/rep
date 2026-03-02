@@ -206,7 +206,7 @@ done
 echo "══ Instalando pacotes no container..."
 pct exec "${CTID}" -- bash -c "
   apt-get update -qq &&
-  apt-get install -y --no-install-recommends curl ca-certificates
+  apt-get install -y --no-install-recommends curl ca-certificates iproute2
 "
 
 # ── Define senha de root e habilita SSH ──────────────────────────────────────
