@@ -61,7 +61,7 @@ export default function Login({ onLogin }: LoginProps) {
         </form>
 
         <p className="mt-4 text-xs text-gray-400 text-center">
-          Senha padrão: <code>admin</code>
+          Use a senha definida na instalação
         </p>
       </div>
     </div>
