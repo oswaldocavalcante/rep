@@ -86,6 +86,9 @@ if [[ -z "$BINARY_PATH" || -z "$WEB_DIR_PATH" ]]; then
   BINARY_URL=$(get_asset_url "rep-server-linux-x86_64")
   DIST_URL=$(get_asset_url "dist.tar.gz")
   SERVICE_URL=$(get_asset_url "rep-server.service")
+  UPDATE_SH_URL=$(get_asset_url "rep-update.sh")
+  UPDATE_SERVICE_URL=$(get_asset_url "rep-update.service")
+  UPDATE_TIMER_URL=$(get_asset_url "rep-update.timer")
 
   [[ -z "$BINARY_URL" ]] && error "Binário 'rep-server-linux-x86_64' não encontrado no release."
   [[ -z "$DIST_URL"   ]] && error "UI 'dist.tar.gz' não encontrada no release."
@@ -106,13 +109,32 @@ if [[ -z "$BINARY_PATH" || -z "$WEB_DIR_PATH" ]]; then
     SERVICE_PATH=""
   fi
 
+  # Baixa arquivos do rep-ctl (auto-updater)
+  if [[ -n "$UPDATE_SH_URL" ]]; then
+    curl -fsSL ${GH_TOKEN:+-H "Authorization: token $GH_TOKEN"} -o "$WORKDIR/rep-ctl" "$UPDATE_SH_URL"
+    chmod +x "$WORKDIR/rep-ctl"
+  fi
+  if [[ -n "$UPDATE_SERVICE_URL" ]]; then
+    curl -fsSL ${GH_TOKEN:+-H "Authorization: token $GH_TOKEN"} -o "$WORKDIR/rep-update.service" "$UPDATE_SERVICE_URL"
+  fi
+  if [[ -n "$UPDATE_TIMER_URL" ]]; then
+    curl -fsSL ${GH_TOKEN:+-H "Authorization: token $GH_TOKEN"} -o "$WORKDIR/rep-update.timer" "$UPDATE_TIMER_URL"
+  fi
+
   BINARY_PATH="$WORKDIR/rep-server"
   WEB_DIR_PATH="$WORKDIR/dist"
+  UPDATE_CTL_PATH="$WORKDIR/rep-ctl"
+  UPDATE_SERVICE_PATH="$WORKDIR/rep-update.service"
+  UPDATE_TIMER_PATH="$WORKDIR/rep-update.timer"
   echo "   Artefatos prontos."
 else
   [[ -f "$BINARY_PATH" ]] || error "Binário não encontrado em '$BINARY_PATH'"
   [[ -d "$WEB_DIR_PATH" ]] || error "Diretório da UI não encontrado em '$WEB_DIR_PATH'"
-  SERVICE_PATH="$(cd "$(dirname "$0")" && pwd)/rep-server.service"
+  LOCAL_DIR="$(cd "$(dirname "$0")" && pwd)"
+  SERVICE_PATH="${SERVICE_PATH:-${LOCAL_DIR}/rep-server.service}"
+  UPDATE_CTL_PATH="${LOCAL_DIR}/rep-update.sh"
+  UPDATE_SERVICE_PATH="${LOCAL_DIR}/rep-update.service"
+  UPDATE_TIMER_PATH="${LOCAL_DIR}/rep-update.timer"
 fi
 
 [[ -f "$SERVICE_PATH" ]] || error "Arquivo rep-server.service não encontrado"
@@ -209,22 +231,25 @@ pct exec "${CTID}" -- bash -c "systemctl daemon-reload && systemctl enable rep-s
 
 # ── Instala rep-ctl (CLI + auto-updater) ──────────────────────────────────────
 echo "══ Instalando rep-ctl e timer de atualização automática..."
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-pct push "${CTID}" "${SCRIPT_DIR}/rep-update.sh"     /usr/local/bin/rep-ctl
-pct push "${CTID}" "${SCRIPT_DIR}/rep-update.service" /etc/systemd/system/rep-update.service
-pct push "${CTID}" "${SCRIPT_DIR}/rep-update.timer"   /etc/systemd/system/rep-update.timer
-pct exec "${CTID}" -- bash -c "
-  chmod +x /usr/local/bin/rep-ctl
-  # Permite que o usuário 'rep' reinicie o serviço via sudo sem senha
-  echo 'rep ALL=(ALL) NOPASSWD: /bin/systemctl restart rep-server' \
-    > /etc/sudoers.d/rep-ctl
-  chmod 440 /etc/sudoers.d/rep-ctl
-  systemctl daemon-reload
-  systemctl enable rep-update.timer
-  systemctl start rep-update.timer
-"
-echo "   rep-ctl instalado. Timer ativo (verifica a cada hora)."
-echo "   Use: rep-ctl version | rep-ctl check | rep-ctl update"
+if [[ -f "$UPDATE_CTL_PATH" && -f "$UPDATE_SERVICE_PATH" && -f "$UPDATE_TIMER_PATH" ]]; then
+  pct push "${CTID}" "$UPDATE_CTL_PATH"      /usr/local/bin/rep-ctl
+  pct push "${CTID}" "$UPDATE_SERVICE_PATH"  /etc/systemd/system/rep-update.service
+  pct push "${CTID}" "$UPDATE_TIMER_PATH"    /etc/systemd/system/rep-update.timer
+  pct exec "${CTID}" -- bash -c "
+    chmod +x /usr/local/bin/rep-ctl
+    mkdir -p /etc/sudoers.d
+    echo 'rep ALL=(ALL) NOPASSWD: /bin/systemctl restart rep-server' \
+      > /etc/sudoers.d/rep-ctl
+    chmod 440 /etc/sudoers.d/rep-ctl
+    systemctl daemon-reload
+    systemctl enable rep-update.timer
+    systemctl start rep-update.timer
+  "
+  echo "   rep-ctl instalado. Timer ativo (verifica a cada hora)."
+  echo "   Use: rep-ctl version | rep-ctl check | rep-ctl update"
+else
+  echo "   Aviso: arquivos rep-ctl não encontrados, pulando instalação do auto-updater."
+fi
 
 # ── Verificação final ─────────────────────────────────────────────────────────
 echo "══ Verificando serviço..."
