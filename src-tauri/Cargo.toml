@@ -1,6 +1,6 @@
 [package]
 name = "ryanne-ponto"
-version = "1.0.14"
+version = "1.0.15"
 description = "Ryanne Ponto Agent - Desktop app and headless service for syncing time records"
 authors = ["Ryanne"]
 edition = "2021"

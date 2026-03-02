@@ -8,10 +8,11 @@
 #
 # Com pré-configuração (sem precisar abrir a UI):
 #   bash <(curl -fsSL ...) \
-#     --repo     USER/REPO \
-#     --app-url  https://seu-sistema.com.br \
-#     --api-key  SUA_CHAVE_API \
-#     --clock-id UUID-DO-RELOGIO
+#     --repo            USER/REPO \
+#     --root-password   SENHA_SSH_ROOT \
+#     --app-url         https://seu-sistema.com.br \
+#     --api-key         SUA_CHAVE_API \
+#     --clock-id        UUID-DO-RELOGIO
 #
 # Com arquivos locais (sem acesso ao GitHub):
 #   ./install-lxc.sh --binary ./rep-server-linux-x86_64 --web-dir ./dist
@@ -34,6 +35,7 @@ BRIDGE="vmbr0"
 TEMPLATE_STORAGE="local"
 BINARY_PATH=""
 WEB_DIR_PATH=""
+ROOT_PASSWORD=""
 
 # ── Parse args ────────────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
@@ -52,6 +54,7 @@ while [[ $# -gt 0 ]]; do
     --bridge)     BRIDGE="$2";        shift 2 ;;
     --binary)     BINARY_PATH="$2";   shift 2 ;;
     --web-dir)    WEB_DIR_PATH="$2";  shift 2 ;;
+    --root-password) ROOT_PASSWORD="$2"; shift 2 ;;
     *) echo "Parâmetro desconhecido: $1"; exit 1 ;;
   esac
 done
@@ -60,6 +63,19 @@ error() { echo "ERRO: $*" >&2; exit 1; }
 
 command -v pct  >/dev/null 2>&1 || error "Este script deve ser executado em um host Proxmox VE"
 command -v curl >/dev/null 2>&1 || error "curl não encontrado"
+
+# ── Solicita senha de root do container (interativo) ─────────────────────────
+if [[ -z "$ROOT_PASSWORD" ]]; then
+  echo ""
+  while true; do
+    read -r -s -p "Digite a senha de root do container LXC: " ROOT_PASSWORD; echo
+    [[ -z "$ROOT_PASSWORD" ]] && { echo "Senha não pode ser vazia."; continue; }
+    read -r -s -p "Confirme a senha: " ROOT_PASSWORD2; echo
+    [[ "$ROOT_PASSWORD" == "$ROOT_PASSWORD2" ]] && break
+    echo "As senhas não coincidem. Tente novamente."
+  done
+fi
+echo ""
 
 # ── Resolve artefatos (GitHub Release ou local) ───────────────────────────────
 WORKDIR="$(mktemp -d /tmp/rep-install-XXXXXX)"
@@ -193,6 +209,17 @@ pct exec "${CTID}" -- bash -c "
   apt-get install -y --no-install-recommends curl ca-certificates
 "
 
+# ── Define senha de root e habilita SSH ──────────────────────────────────────
+echo "══ Configurando acesso SSH..."
+pct exec "${CTID}" -- bash -c "
+  echo 'root:${ROOT_PASSWORD}' | chpasswd
+  sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+  sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+  systemctl enable ssh
+  systemctl start ssh
+"
+echo "   SSH habilitado."
+
 # ── Cria usuário e diretórios ─────────────────────────────────────────────────
 echo "══ Criando usuário 'rep' e diretórios..."
 pct exec "${CTID}" -- bash -c "
@@ -263,8 +290,7 @@ echo "║          Ryanne REP — Instalação concluída           ║"
 echo "╠══════════════════════════════════════════════════════╣"
 printf "║  Container ID : CT%-34s║\n" "${CTID}"
 printf "║  IP           : %-36s║\n" "${CT_IP}"
-printf "║  Painel web   : http://%-29s║\n" "${CT_IP}:${REP_PORT}"
-printf "║  Serviço      : %-36s║\n" "${STATUS}"
+printf "║  Painel web   : http://%-29s║\n" "${CT_IP}:${REP_PORT}"  printf "║  SSH          : ssh root@%-27s║\n" "${CT_IP}"printf "║  Serviço      : %-36s║\n" "${STATUS}"
 echo "╠══════════════════════════════════════════════════════╣"
 echo "║  Senha padrão de acesso ao painel: admin             ║"
 echo "║  Recomendado: altere em Configurações → Senha        ║"
