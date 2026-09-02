@@ -80,19 +80,31 @@ async fn version_handler() -> impl IntoResponse {
 async fn update_handler() -> impl IntoResponse {
     use tokio::process::Command;
 
-    match Command::new("/usr/local/bin/rep-ctl")
-        .arg("update")
+    // O rep-server roda sob sandbox (ProtectSystem=strict, /usr somente-leitura),
+    // então a atualização não pode ser feita neste processo. Dispara o
+    // rep-update.service (root, sem sandbox) via sudo e retorna na hora — o
+    // serviço se reinicia sozinho ao final.
+    let result = Command::new("sudo")
+        .args(["-n", "systemctl", "start", "--no-block", "rep-update.service"])
         .output()
-        .await
-    {
+        .await;
+
+    match result {
+        Ok(out) if out.status.success() => Json(json!({
+            "success": true,
+            "output": "Atualização iniciada em segundo plano. O serviço será reiniciado automaticamente — aguarde ~30s e recarregue a página.",
+        }))
+        .into_response(),
         Ok(out) => {
-            let stdout = String::from_utf8_lossy(&out.stdout).to_string();
-            let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-            let success = out.status.success();
-            Json(json!({
-                "success": success,
-                "output": format!("{}{}", stdout, stderr).trim().to_string(),
-            })).into_response()
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "success": false,
+                    "output": format!("Falha ao iniciar a atualização: {}", stderr.trim()),
+                })),
+            )
+                .into_response()
         }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,

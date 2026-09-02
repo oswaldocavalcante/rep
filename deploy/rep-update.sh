@@ -16,9 +16,16 @@ set -euo pipefail
 REPO="oswaldocavalcante/rep"
 BINARY_SRC="rep-server-linux-x86_64"
 BINARY_DEST="/usr/local/bin/rep-server"
+CTL_DEST="/usr/local/bin/rep-ctl"
 WEB_DEST="/usr/share/rep/web"
 SERVICE_NAME="rep-server"
+SERVICE_DROPIN="/etc/systemd/system/rep-server.service.d/10-rep-ctl.conf"
+SUDOERS_FILE="/etc/sudoers.d/rep-ctl"
+ENV_FILE="/etc/rep/env"
 GH_API="https://api.github.com/repos/${REPO}/releases/latest"
+
+# Setado por migrate_config() quando algo em disco muda (exige daemon-reload + restart)
+MIGRATED=0
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 info()    { echo "[rep-ctl] $*"; }
@@ -65,6 +72,82 @@ semver_gt() {
     return 1  # iguais
 }
 
+restart_service() {
+    if ! command -v systemctl &>/dev/null; then
+        warn "systemctl não encontrado. Reinicie o serviço manualmente."
+        return
+    fi
+    if [[ $EUID -eq 0 ]]; then
+        systemctl restart "$SERVICE_NAME"
+    else
+        sudo systemctl restart "$SERVICE_NAME"
+    fi
+    success "Serviço reiniciado."
+}
+
+# ── Migrações de configuração (idempotentes) ─────────────────────────────────
+# Ajusta o que o install-lxc.sh passou a gerar mas que updates antigos não
+# aplicam: painel na porta 80, capability p/ bind não-root e regra de sudo.
+# Só roda como root (via rep-update.service); sob a UI (usuário 'rep') é no-op.
+migrate_config() {
+    [[ $EUID -ne 0 ]] && return 0
+    command -v systemctl &>/dev/null || return 0
+
+    # 1. Drop-in systemd: bind na porta 80 + desabilita no-new-privileges (sudo)
+    local amb nnp
+    amb=$(systemctl show "$SERVICE_NAME" -p AmbientCapabilities --value 2>/dev/null || true)
+    nnp=$(systemctl show "$SERVICE_NAME" -p NoNewPrivileges --value 2>/dev/null || true)
+    if [[ "$amb" != *cap_net_bind_service* || "$nnp" == "yes" ]]; then
+        if [[ ! -f "$SERVICE_DROPIN" ]]; then
+            mkdir -p "$(dirname "$SERVICE_DROPIN")"
+            cat > "$SERVICE_DROPIN" <<'EOF'
+# Gerado por rep-ctl — não editar manualmente
+[Service]
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+NoNewPrivileges=false
+EOF
+            info "Drop-in systemd instalado (porta 80 + auto-update pela UI)."
+            MIGRATED=1
+        fi
+    fi
+
+    # 2. sudoers: installs antigos só permitiam 'restart rep-server' e apontavam
+    #    para /bin/systemctl; o botão da UI agora dispara o rep-update.service.
+    if command -v visudo &>/dev/null; then
+        if [[ ! -f "$SUDOERS_FILE" ]] || ! grep -qF 'start --no-block rep-update.service' "$SUDOERS_FILE"; then
+            printf 'rep ALL=(ALL) NOPASSWD: /usr/bin/systemctl start --no-block rep-update.service, /bin/systemctl start --no-block rep-update.service, /usr/bin/systemctl restart rep-server, /bin/systemctl restart rep-server\n' \
+                > "${SUDOERS_FILE}.new"
+            chmod 440 "${SUDOERS_FILE}.new"
+            if visudo -cqf "${SUDOERS_FILE}.new"; then
+                mv "${SUDOERS_FILE}.new" "$SUDOERS_FILE"
+                info "Regra sudoers do rep-ctl atualizada."
+                MIGRATED=1
+            else
+                rm -f "${SUDOERS_FILE}.new"
+                warn "sudoers gerado é inválido; regra mantida como está."
+            fi
+        fi
+    fi
+
+    # 3. REP_PORT: default antigo (3001) ou ausente → 80. Portas customizadas ficam.
+    if [[ -f "$ENV_FILE" ]]; then
+        if ! grep -q '^REP_PORT=' "$ENV_FILE"; then
+            echo 'REP_PORT=80' >> "$ENV_FILE"
+            info "REP_PORT ausente em $ENV_FILE — definido como 80."
+            MIGRATED=1
+        elif grep -qE '^REP_PORT=3001[[:space:]]*$' "$ENV_FILE"; then
+            sed -i -E 's/^REP_PORT=3001[[:space:]]*$/REP_PORT=80/' "$ENV_FILE"
+            info "REP_PORT migrado de 3001 para 80 — painel agora em http://IP (sem porta)."
+            MIGRATED=1
+        fi
+    fi
+
+    if [[ "$MIGRATED" -eq 1 ]]; then
+        systemctl daemon-reload
+    fi
+    return 0
+}
+
 # ── Subcomandos ───────────────────────────────────────────────────────────────
 cmd_version() {
     local current latest
@@ -97,8 +180,13 @@ cmd_update() {
     local force="${1:-}"
     local current latest
 
+    [[ $EUID -ne 0 ]] && error "Execute como root: sudo rep-ctl update (ou use o botão na UI)."
+
     current=$(current_version)
     info "Versão atual: $current"
+
+    migrate_config
+
     info "Consultando GitHub por novas versões..."
 
     local release_json
@@ -112,6 +200,10 @@ cmd_update() {
     fi
 
     if [[ "$force" != "--force" ]] && ! semver_gt "$latest" "$current"; then
+        if [[ "$MIGRATED" -eq 1 ]]; then
+            info "Configuração migrada; reiniciando serviço..."
+            restart_service
+        fi
         success "Já na versão mais recente ($current). Nada a fazer."
         exit 0
     fi
@@ -159,20 +251,40 @@ cmd_update() {
         rm -f "$tmp_dist"
     fi
 
-    # Reinicia serviço
-    info "Reiniciando $SERVICE_NAME..."
-    if command -v systemctl &>/dev/null; then
-        if [[ $EUID -eq 0 ]]; then
-            systemctl restart "$SERVICE_NAME"
+    # Auto-atualiza o próprio rep-ctl (para receber futuras migrações)
+    if [[ $EUID -eq 0 ]]; then
+        local ctl_url
+        ctl_url=$(echo "$release_json" \
+            | grep -o '"browser_download_url": *"[^"]*rep-update\.sh[^"]*"' \
+            | grep -o 'https://[^"]*' | head -1)
+        if [[ -n "$ctl_url" ]] \
+            && curl -fsSL --max-time 30 -o "${CTL_DEST}.new" "$ctl_url" \
+            && head -1 "${CTL_DEST}.new" | grep -q '^#!'; then
+            chmod +x "${CTL_DEST}.new"
+            mv "${CTL_DEST}.new" "$CTL_DEST"
+            info "rep-ctl atualizado."
         else
-            sudo systemctl restart "$SERVICE_NAME"
+            rm -f "${CTL_DEST}.new"
         fi
-        success "Serviço reiniciado."
-    else
-        warn "systemctl não encontrado. Reinicie o serviço manualmente."
     fi
 
+    # Reinicia serviço
+    info "Reiniciando $SERVICE_NAME..."
+    restart_service
+
     success "Atualizado para v$latest com sucesso!"
+}
+
+cmd_migrate() {
+    [[ $EUID -ne 0 ]] && error "Execute como root (sudo rep-ctl migrate)."
+    migrate_config
+    if [[ "$MIGRATED" -eq 1 ]]; then
+        info "Reiniciando serviço para aplicar..."
+        restart_service
+        success "Migração concluída."
+    else
+        success "Nada a migrar; configuração já está atualizada."
+    fi
 }
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -183,6 +295,7 @@ case "$CMD" in
     version)  cmd_version ;;
     check)    cmd_check ;;
     update)   cmd_update "${1:-}" ;;
+    migrate)  cmd_migrate ;;
     help|--help|-h)
         echo "Uso: rep-ctl <comando>"
         echo ""
@@ -191,6 +304,7 @@ case "$CMD" in
         echo "  check      Verifica silenciosamente (exit 0 = tem atualização)"
         echo "  update     Aplica atualização e reinicia o serviço"
         echo "  update --force  Força reinstalação mesmo na versão atual"
+        echo "  migrate    Aplica migrações de config (porta 80, sudoers) sem atualizar"
         ;;
     *)
         echo "Comando desconhecido: $CMD. Use 'rep-ctl help'." >&2

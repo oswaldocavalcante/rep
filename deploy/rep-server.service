@@ -13,12 +13,19 @@ EnvironmentFile=-/etc/rep/env
 ExecStart=/usr/local/bin/rep-server
 Restart=always
 RestartSec=5
+
+# Permite bind na porta 80 rodando como usuário não-root
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=rep-server
 
 # Segurança
-NoNewPrivileges=true
+# NoNewPrivileges NÃO é habilitado de propósito: o botão "Atualizar" da UI
+# executa `sudo systemctl start --no-block rep-update.service`, e
+# no-new-privileges impede o sudo (setuid) de funcionar. A regra em
+# /etc/sudoers.d/rep-ctl restringe o sudo a comandos específicos.
 PrivateTmp=true
 ProtectSystem=strict
 ReadWritePaths=/var/lib/rep /etc/rep

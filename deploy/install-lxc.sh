@@ -26,7 +26,7 @@ RELEASE_TAG="latest"
 APP_URL=""
 API_KEY=""
 CLOCK_ID=""
-REP_PORT="3001"
+REP_PORT="80"
 CTID="200"
 HOSTNAME="rep-ponto"
 MEMORY="256"
@@ -207,7 +207,7 @@ done
 echo "══ Instalando pacotes no container..."
 pct exec "${CTID}" -- bash -c "
   apt-get update -qq &&
-  apt-get install -y --no-install-recommends curl ca-certificates iproute2
+  apt-get install -y --no-install-recommends curl ca-certificates iproute2 sudo openssh-server
 "
 
 # ── Define senha de root e habilita SSH ──────────────────────────────────────
@@ -278,9 +278,10 @@ if [[ -f "$UPDATE_CTL_PATH" && -f "$UPDATE_SERVICE_PATH" && -f "$UPDATE_TIMER_PA
   pct exec "${CTID}" -- bash -c "
     chmod +x /usr/local/bin/rep-ctl
     mkdir -p /etc/sudoers.d
-    echo 'rep ALL=(ALL) NOPASSWD: /bin/systemctl restart rep-server' \
+    echo 'rep ALL=(ALL) NOPASSWD: /usr/bin/systemctl start --no-block rep-update.service, /bin/systemctl start --no-block rep-update.service, /usr/bin/systemctl restart rep-server, /bin/systemctl restart rep-server' \
       > /etc/sudoers.d/rep-ctl
     chmod 440 /etc/sudoers.d/rep-ctl
+    visudo -cqf /etc/sudoers.d/rep-ctl || rm -f /etc/sudoers.d/rep-ctl
     systemctl daemon-reload
     systemctl enable rep-update.timer
     systemctl start rep-update.timer
@@ -297,13 +298,19 @@ sleep 3
 STATUS=$(pct exec "${CTID}" -- systemctl is-active rep-server 2>/dev/null || echo "unknown")
 CT_IP=$(pct exec "${CTID}" -- bash -c "hostname -I 2>/dev/null | awk '{print \$1}'" 2>/dev/null || echo "obtendo...")
 
+if [[ "$REP_PORT" == "80" ]]; then
+  PANEL_ADDR="${CT_IP}"
+else
+  PANEL_ADDR="${CT_IP}:${REP_PORT}"
+fi
+
 echo ""
 echo "╔══════════════════════════════════════════════════════╗"
 echo "║          Ryanne REP — Instalação concluída           ║"
 echo "╠══════════════════════════════════════════════════════╣"
 printf "║  Container ID : CT%-34s║\n" "${CTID}"
 printf "║  IP           : %-36s║\n" "${CT_IP}"
-printf "║  Painel web   : http://%-29s║\n" "${CT_IP}:${REP_PORT}"
+printf "║  Painel web   : http://%-29s║\n" "${PANEL_ADDR}"
 printf "║  SSH          : ssh root@%-27s║\n" "${CT_IP}"
 printf "║  Serviço      : %-36s║\n" "${STATUS}"
 echo "╠══════════════════════════════════════════════════════╣"

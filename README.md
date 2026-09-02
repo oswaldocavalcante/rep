@@ -10,7 +10,7 @@ Agente de sincronização de registros de ponto para relógios **IDClass** (AFD)
 Relógio IDClass ──► rep-server (LXC) ──► Ryanne Sistema (Next.js)
                          │
                     Painel Web
-                  http://IP:3001
+                    http://IP
 ```
 
 1. O agente lê o AFD do relógio via API IDClass
@@ -37,7 +37,7 @@ O script cria automaticamente um container Debian 12, baixa o binário e a UI do
 | `--app-url` | — | URL do sistema Ryanne (pré-configura sem abrir a UI) |
 | `--api-key` | — | Chave de API punch-collector |
 | `--clock-id` | — | UUID do relógio cadastrado no sistema |
-| `--port` | `3001` | Porta do painel web |
+| `--port` | `80` | Porta do painel web |
 | `--ctid` | `200` | ID do container Proxmox |
 | `--hostname` | `rep-ponto` | Hostname do container |
 | `--memory` | `256` | RAM em MB |
@@ -52,13 +52,13 @@ bash <(curl -fsSL https://raw.githubusercontent.com/oswaldocavalcante/rep/main/d
   --clock-id UUID-DO-RELOGIO
 ```
 
-Após a instalação, acesse o painel em **`http://IP-DO-CT:3001`** com a senha padrão `admin`.
+Após a instalação, acesse o painel em **`http://IP-DO-CT`** com a senha de root definida durante a instalação.
 
 ---
 
 ## API HTTP
 
-O `rep-server` expõe uma API REST na porta `3001`.
+O `rep-server` expõe uma API REST na porta `80` (ou na porta definida via `--port`).
 
 ### Rotas públicas
 
@@ -105,7 +105,7 @@ Configuradas em `/etc/rep/env` no container:
 
 | Variável | Default | Descrição |
 |---|---|---|
-| `REP_PORT` | `3001` | Porta do servidor HTTP |
+| `REP_PORT` | `80` | Porta do servidor HTTP (o instalador grava `80`; fallback do binário é `3001`) |
 | `REP_WEB_DIR` | `/usr/share/rep/web` | Diretório da UI estática |
 | `REP_APP_URL` | — | URL do sistema (provisionamento automático) |
 | `REP_API_KEY` | — | Chave de API (provisionamento automático) |
